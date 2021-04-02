@@ -1,0 +1,63 @@
+* FMZ
+  File manager in a fuzzy finder.
+
+** Dependencies
+   core utils and [[https://github.com/junegunn/fzf][fzf]].
+
+** Optional dependencies
+   Having one of those is not a must, they only unlock new superpowers.
+
+   | Dependency         | Superpower                        |
+   |--------------------+-----------------------------------|
+   | [[https://github.com/Naheel-Azawy/stpv][stpv]]               | better previews with images       |
+   | [[https://github.com/Naheel-Azawy/cp-p][cp-p]]               | show progress of cp and mv        |
+   | vidir (moreutils)  | rename files using with an editor |
+   | [[https://github.com/cybernoid/archivemount][archivemount]] ([[https://aur.archlinux.org/packages/archivemount/][AUR]]) | browse archives seamlessly        |
+   | gio or [[https://github.com/andreafrancia/trash-cli][trash-cli]]   | XDG trash                         |
+   | xclip              | copy file names to X clipboard    |
+   | [[https://github.com/mwh/dragon][dragon]]             | drag and drop                     |
+
+** Shell integration
+   - sh
+     #+begin_src shell-script
+       fmz() {
+           tmp=$(mktemp)
+           command fmz --cd "$tmp" "$@"
+           res=$(tail -n 1 "$tmp")
+           if [ -d "$res" ] && [ "$res" != "$PWD" ]; then
+               echo cd "$res"
+               cd "$res" || return 1
+           fi
+           rm "$tmp"
+       }
+     #+end_src
+
+   - fish
+     #+begin_src shell-script
+       function fmz
+           set tmp (mktemp)
+           command fmz --cd $tmp $argv
+           set res (tail -n 1 $tmp)
+           if test -d "$res" && test "$res" != "$PWD"
+               echo cd $res
+               cd $res || return 1
+           end
+           rm $tmp
+       end
+     #+end_src
+
+** Configuration
+   For now, only keybindings and bookmarks are configurable. More configs might be added later. Example config file (~/.config/fmzrc.sh):
+
+   #+begin_src shell-script
+     bind ctrl-c "$cmd_copy"  'Copy'
+     bind ctrl-x "$cmd_move"  'Cut'
+     bind ctrl-v "$cmd_paste" 'Paste'
+
+     bookmark ~/Documents
+     bookmark ~/Pictures
+     bookmark ~/Videos
+   #+end_src
+
+** License
+   GPL3

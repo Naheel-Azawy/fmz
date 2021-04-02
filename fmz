@@ -1,0 +1,754 @@
+#!/bin/sh
+
+# Copyright (C) 2021 naheel-azawy
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+NAME='fmz'
+SELF="$0"
+ID=$$
+CFG_DIR="$HOME/.config"
+CFG_FILE="$CFG_DIR/${NAME}rc.sh"
+OP_FILE=/tmp/$NAME-op
+HIDDEN_FILE=/tmp/$NAME-hidden
+SORT_FILE=/tmp/$NAME-sort
+TMP_FILE="/tmp/$NAME-tmp-$ID"
+
+HACKY=
+[ "$HACKY" ] && LAST_FILE="/tmp/$NAME-last-$ID"
+
+# global parameters
+
+CD=
+W= ; H=
+PV= ; PV_WIN= ; USE_STPV=
+
+bindings="ctrl-g:$cmd_refresh"
+bindings_help=""
+bookmarks="$HOME"
+
+# common commands
+
+cmd_reload="reload('$SELF' --eval list)"
+cmd_open="accept-non-empty"
+[ "$HACKY" ] &&
+    cmd_open="accept-non-empty+execute-silent(echo \"\$(realpath .)\" {n} >> $LAST_FILE)"
+cmd_updir="abort+execute(echo ..)"
+cmd_menu="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ menu $TMP_FILE')"
+cmd_new="abort+execute(echo '\$ mknew')"
+cmd_copy="execute-silent('$SELF' --eval copy {+f})+clear-selection"
+cmd_move="execute-silent('$SELF' --eval move {+f})+clear-selection"
+cmd_paste="abort+execute(echo '\$ paste')"
+cmd_rename="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ rename $TMP_FILE')"
+cmd_delete="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ delete $TMP_FILE')"
+cmd_goto="abort+execute('$SELF' --eval goto)"
+cmd_refresh="abort+execute(echo .)"
+cmd_tog_hidden="execute-silent('$SELF' --eval tog_hidden)+$cmd_reload"
+cmd_dnd="execute-silent(dragon -a -x {+})"
+cmd_shell="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ start_shell $TMP_FILE')"
+cmd_quit="abort"
+cmd_help="abort+execute(echo '\$ show_help')"
+cmd_kill="execute(kill $ID)"
+
+# config helpers
+
+bind() {
+    key="$1"
+    cmd="$2"
+    doc="$3"
+    bindings="$bindings,$key:$cmd"
+    if [ "$doc" ]; then
+        str=$(printf '%-20s: %s' "$key" "$doc")
+        bindings_help="$bindings_help$str
+"
+    fi
+}
+
+bookmark() {
+    [ -d "$1" ] && {
+        bookmarks="$bookmarks:$1"
+    }
+}
+
+show_help() {
+    {
+        echo 'Keyboard bindings'
+        echo '================='
+        echo "$bindings_help"
+    } | less --clear-screen
+}
+
+exists() {
+    command -v "$1" >/dev/null
+}
+
+# default config
+
+bind ctrl-k     "$cmd_kill"
+bind home       "first"
+bind end        "last"
+bind enter      "$cmd_open"       'Open selected item'
+bind right      "$cmd_open"       'Open selected item'
+bind left       "$cmd_updir"      'Go to parent directory'
+bind shift-up   "toggle+up"       'Mark and move selection up'
+bind shift-down "toggle+down"     'Mark and move selection down'
+bind ctrl-a     "select-all"      'Select all'
+bind ctrl-g     "clear-selection" 'Clear selection'
+bind alt-x      "$cmd_menu"       'Open menu'
+bind ctrl-n     "$cmd_new"        'New file or folder'
+bind ctrl-c     "$cmd_copy"       'Copy'
+bind ctrl-x     "$cmd_move"       'Cut'
+bind ctrl-v     "$cmd_paste"      'Paste'
+bind f2         "$cmd_rename"     'Rename'
+bind del        "$cmd_delete"     'Delete'
+bind ctrl-l     "$cmd_goto"       'Go to'
+bind f5         "$cmd_refresh"    'Refresh'
+bind ctrl-h     "$cmd_tog_hidden" 'Show/hide hidden files'
+bind ctrl-s     "$cmd_shell"      'Start a shell here'
+bind alt-up     "preview-up"      'Scroll preview up'
+bind alt-down   "preview-down"    'Scroll preview down'
+exists dragon &&
+    bind ctrl-d "$cmd_dnd"        'Drag and drop'
+bind ctrl-q     "$cmd_quit"       'Quit'
+bind esc        "$cmd_quit"       'Quit'
+bind f1         "$cmd_help"       'Show this help screen'
+
+bookmark ~/Documents
+bookmark ~/Pictures
+bookmark ~/Videos
+bookmark ~/Music
+bookmark ~/Downloads
+bookmark ~/Projects
+
+# load config
+
+mkdir -p "$CFG_DIR"
+[ -f "$CFG_FILE" ] && . "$CFG_FILE"
+
+# archive utils
+
+isarchive() {
+    case "$1" in
+        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2|*.tar.gz|*.tgz|*.tar.xz|*.txz|*.zip|*.apk|*.jar|*.rar|*.iso)
+            return 0;;
+        *)  return 1;;
+    esac
+}
+
+archive_getmnt() {
+    md5=$(echo "$1" | md5sum - | cut -d ' ' -f 1)
+    echo "/tmp/archivemount-wrapper/$md5"
+}
+
+archive_getln() {
+    echo "$1-archive"
+}
+
+# 0: mounted
+# 1: not mounted
+# 2: error, cleanup required
+archive_ismounted() {
+    q= && [ "$1" = '-q' ] && q=1 && shift
+    p=$(realpath "$1")
+    mntpath=$(archive_getmnt "$p")
+    linkpath=$(archive_getln "$p")
+    if [ -e "$mntpath" ]; then
+        if [ -d "$mntpath" ]; then
+            if mountpoint -q "$mntpath"; then
+                if [ -L "$linkpath" ]; then
+                    return 0
+                else
+                    return 2 # all good but not linked
+                fi
+            elif [ ! "$(ls -A "$mntpath")" ]; then
+                [ "$q" ] || echo "Error: '$mntpath' is not empty"
+                return 2
+            fi
+        else
+            [ "$q" ] || echo "Error: '$mntpath' is not a directory"
+            return 2
+        fi
+    else
+        if [ -L "$linkpath" ]; then
+            [ "$q" ] || echo "Error: '$p' is not mounted with dead link"
+            return 2
+        else
+            [ "$q" ] || echo "'$p' is not mounted"
+            return 1
+        fi
+    fi
+}
+
+archive_umount() {
+    q= && [ "$1" = '-q' ] && q=1 && shift
+    p=$(realpath "$1")
+    if [ "$q" ]; then
+        archive_ismounted -q "$p"
+    else
+        archive_ismounted "$p"
+    fi
+    case $? in
+        0|2) # mounted or needs cleanup
+            mntpath=$(archive_getmnt "$p")
+            linkpath=$(archive_getln "$p")
+            mountpoint -q "$mntpath" &&
+                fusermount -u "$mntpath"
+            [ -d "$mntpath" ] &&
+                rmdir "$mntpath"
+            [ -L "$linkpath" ] &&
+                rm "$linkpath"
+            rm -f "${mntpath}-origin"
+            ;;
+        *) return $?;;
+    esac
+}
+
+archive_mount() {
+    lf= && [ "$1" = '--lfid' ] && lf="$2" && shift 2
+    p=$(realpath "$1")
+    d=$(dirname "$p")
+    mntpath=$(archive_getmnt "$p")
+    linkpath=$(archive_getln "$p")
+    s='' && [ ! -w "$d" ] && s='sudo'
+
+    isarchive "$p" || {
+        echo "'$p' is not archive"
+        return 1
+    }
+
+    archive_umount -q "$p"
+
+    mkdir -p "$mntpath" &&
+        archivemount "$p" "$mntpath" &&
+        $s ln -s "$mntpath" "$linkpath" &&
+        echo "$p" > "${mntpath}-origin"
+
+    echo "$linkpath"
+}
+
+archive_umountall() {
+    for d in /tmp/archivemount-wrapper/*-origin; do
+        p=$(cat "$d")
+        if [ "$p" ]; then
+            echo "unmounting '$p'..."
+            archive_umount "$p"
+        fi
+    done
+}
+
+archive_extract() {
+    here= && [ "$1" = '--here' ] && here=1 && shift
+    p=$(realpath "$1")
+    s='' && [ ! -w . ] && s='sudo'
+    out="$p-extracted"
+    if [ ! "$here" ]; then
+        $s mkdir -p "$out" && cd "$out" || return 1
+    fi
+    # https://xkcd.com/1168/
+    case "$p" in
+        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) $s tar xjvf "$p" ;;
+        *.tar.gz|*.tgz)                  $s tar xzvf "$p" ;;
+        *.tar.xz|*.txz)                  $s tar xJvf "$p" ;;
+        *.zip)                           $s unzip "$p"    ;;
+        *.rar)                           $s unrar x "$p"  ;;
+        *.7z)                            $s 7z x "$p"     ;;
+        *)
+            echo "Error: unknown file format"
+            return 1;;
+    esac
+}
+
+mktar() {
+    s='' && [ ! -w . ] && s='sudo'
+    n="$1"
+    shift
+    $s tar czf "$n".tar.gz "$@"
+}
+
+mkzip() {
+    s='' && [ ! -w . ] && s='sudo'
+    n="$1"
+    shift
+    $s zip -j -r "$n".zip "$@"
+}
+
+# for fzf preview
+PV_SHELL=bash
+exists dash && PV_SHELL=dash
+
+fzf_base() {
+    SHELL="$PV_SHELL" fzf           \
+         --ansi                     \
+         --layout=reverse           \
+         --no-clear                 \
+         --pointer=' '              \
+         --marker='❱'               \
+         --bind change:first        \
+         --color='marker:#ffffff'   \
+         --color='fg+:reverse'      \
+         --color='bg+:-1'           \
+         --color='hl:reverse'       \
+         --color='hl+:reverse'      \
+         --color='gutter:-1'        \
+         --info=default             \
+         "$@"
+}
+
+# dmenu replacement
+menu_interface() {
+    fzf_base \
+        --print-query \
+        --info=hidden \
+        "$@" | tail -n1
+}
+
+menu() {
+    f=$(head -n1 "$1")
+    res=$({
+             echo 'Copy'
+             echo 'Move'
+             echo 'Paste'
+             echo 'Delete'
+             echo 'Rename'
+             exists vidir && echo 'Rename all'
+             echo 'New folder'
+             echo 'New file'
+             echo 'Sort normally'
+             echo 'Sort by time'
+             echo 'Sort by size'
+             isarchive "$f" && echo 'Extract archive'
+             echo 'Create archive'
+             echo 'Help'
+         } | menu_interface --prompt "$f> ")
+    case "$res" in
+        'Copy')            copy            "$1" ;;
+        'Move')            move            "$1" ;;
+        'Paste')           paste                ;;
+        'Delete')          delete          "$1" ;;
+        'Rename')          rename          "$1" ;;
+        'Rename all')      renameall       "$1" ;;
+        'New folder')      mkfolder             ;;
+        'New file')        mkfile               ;;
+        'Sort normally')   lssort ''            ;;
+        'Sort by time')    lssort time          ;;
+        'Sort by size')    lssort size          ;;
+        'Extract archive') archive_extract "$f" ;;
+        'Create archive')  mkarchive       "$1" ;;
+        'Help')            show_help            ;;
+    esac
+}
+
+copy() {
+    files=$(while read -r f; do realpath "$f"; done < "$1")
+    exists xclip &&
+        printf '%s' "$files" | xclip -i -selection clipboard
+    {
+        echo "copy"
+        echo "$files"
+    } > "$OP_FILE"
+}
+
+move() {
+    files=$(while read -r f; do realpath "$f"; done < "$1")
+    exists xclip &&
+        printf '%s' "$files" | xclip -i -selection clipboard
+    {
+        echo "move"
+        echo "$files"
+    } > "$OP_FILE"
+}
+
+paste() {
+    [ -f "$OP_FILE" ] || return
+    load=$(cat "$OP_FILE")
+    mode=$(echo "$load" | sed -n '1p')
+    list=$(echo "$load" | sed '1d')
+
+    if exists cp-p; then
+        srcf=$(mktemp)
+        echo "$list" > "$srcf"
+        tput rmcup
+        case "$mode" in
+            copy)
+                cp-p --backup=numbered -a -F "$srcf" . ;;
+            move)
+                mv-p --backup=numbered -F "$srcf" . ;;
+        esac
+        rm -f "$srcf"
+    else
+        echo "$list" | while read -r f; do
+            case "$mode" in
+                copy) cp -ra "$f" .;;
+                move) mv     "$f" .;;
+            esac
+        done
+    fi
+    rm -f "$OP_FILE"
+}
+
+delete() {
+    files=$(while read -r f; do realpath "$f"; done < "$1")
+    count=$(echo "$files" | wc -l)
+    if [ "$count" -gt 1 ]; then
+        prompt='Delete multiple files?'
+    else
+        f=$(basename "$files")
+        prompt="Delete $f?"
+    fi
+    ans=$({
+             exists gio || exists trash-put && echo 'Trash'
+             echo 'Delete permanently'
+             echo 'Cancel'
+         } | menu_interface --prompt "$prompt> ")
+
+    echo "$files" | while read -r f; do
+        case "$ans" in
+            Trash)
+                # move current file or selected files to trash folder
+                # using trash-cli (https://github.com/andreafrancia/trash-cli)
+                gio trash "$f" || trash-put "$f" ;;
+            Delete*)
+                rm -rf "$f" ;;
+        esac
+    done
+}
+
+rename() {
+    files=$(cat "$1")
+    count=$(echo "$files" | wc -l)
+
+    if [ "$count" = 1 ]; then
+        f="$files"
+        name=$(echo | menu_interface \
+                          --query "$f" \
+                          --prompt "Rename $f to> ")
+        [ "$name" ] && {
+            if [ -e "$name" ]; then
+                echo "$name already exists"
+            elif [ "$name" ] && [ "$name" != "$f" ]; then
+                mv "$f" "$name"
+            fi
+        }
+    else
+        exists vidir &&
+            echo "$files" | vidir -
+    fi
+}
+
+renameall() {
+    exists vidir && vidir .
+}
+
+mkfolder() {
+    name=$(echo | menu_interface --prompt 'New folder name> ')
+    if [ -e "$name" ]; then
+       echo "$name already exists"
+    elif [ "$name" ]; then
+        mkdir -p "$name"
+        cd "$name" || return 1
+    fi
+}
+
+mkfile() {
+    name=$(echo | menu_interface --prompt 'New file name> ')
+    if [ -e "$name" ]; then
+       echo "$name already exists"
+    elif [ "$name" ]; then
+        touch "$name"
+    fi
+}
+
+mknew() {
+    res=$(printf 'Folder\nFile' | menu_interface --prompt "New> ")
+    case "$res" in
+        'Folder') mkfolder ;;
+        'File')   mkfile   ;;
+    esac
+}
+
+mkarchive() {
+    files=$(while read -r f; do realpath "$f"; done < "$1")
+    type=$(printf 'ZIP\nTAR' | menu_interface --prompt "Archive type> ")
+    name=$(echo | menu_interface --prompt 'Archive name> ')
+    case "$type" in
+        ZIP) echo "$files" | xargs "$SELF" --eval mkzip "$name" ;;
+        TAR) echo "$files" | xargs "$SELF" --eval mktar "$name" ;;
+    esac
+}
+
+goto() {
+    res=$({
+             realpath .
+             echo "$bookmarks" | tr ':' '\n'
+             lsblk -rpo "name,type,fsavail,fssize,mountpoint,label" |
+                 awk '
+                   $6 != "" { $6 = $6" " };
+                   ($2=="part"||$2=="lvm") && $5 != "" {
+                     printf "Partition %s#%s#%s#(%s/%s)\n", $5, $1, $6, $3, $4
+                   }' |
+                 tac | column -t -s'#'
+         } | menu_interface --prompt 'Go to> ')
+
+    case "$res" in
+        Partition*) res=$(echo "$res" | cut -d ' ' -f2) ;;
+        *) [ -d "$res" ] || res="$PWD"
+    esac
+    echo "$res"
+}
+
+start_shell() {
+    FMZ_SHELL=$ID
+    id=$ID
+    fx=$(while read -r f; do realpath "$f"; done < "$1")
+    f=$(echo "$fx" | head -n1)
+    export FMZ_SHELL id fx f
+    tput rmcup
+    $SHELL
+}
+
+tog_hidden() {
+    if [ -f "$HIDDEN_FILE" ]; then
+        rm "$HIDDEN_FILE"
+    else
+        touch "$HIDDEN_FILE"
+    fi
+}
+
+lssort() {
+    if [ "$1" ]; then
+        echo "$1" > "$SORT_FILE"
+    else
+        rm -f "$SORT_FILE"
+    fi
+}
+
+list() {
+    cmd=
+    cmd="$cmd command ls -1 -N"
+    cmd="$cmd --group-directories-first"
+    cmd="$cmd --color=always"
+    if [ -f "$HIDDEN_FILE" ]; then
+        cmd="$cmd -A"
+    fi
+    if [ -f "$SORT_FILE" ]; then
+        sort=$(cat "$SORT_FILE")
+        [ "$sort" ] &&
+            cmd="$cmd --sort=$sort"
+    fi
+    eval "$cmd"
+}
+
+remove_ansi() {
+    echo "$1" | sed -r "s/\x1B\[(([0-9]+)(;[0-9]+)*)?[m,K,H,f,J]//g"
+}
+
+list_icons() {
+    list | while read -r line; do
+        f=$(remove_ansi "$line")
+        if [ -d "$f" ]; then
+            ic=''
+        else
+            ic=''
+        fi
+        echo "$ic $line"
+    done
+}
+
+header() {
+    [ -f /usr/share/git/completion/git-prompt.sh ] && {
+        . /usr/share/git/completion/git-prompt.sh
+        GIT_PS1_SHOWDIRTYSTATE=auto
+        GIT_PS1_SHOWSTASHSTATE=auto
+        GIT_PS1_SHOWUNTRACKEDFILES=auto
+        GIT_PS1_SHOWUPSTREAM=auto
+        git=$(__git_ps1 " (%s)")
+    }
+    dev=$(findmnt -T . -no "source,avail,size,label" |
+              awk '$4 != "" {$4 = $4" "};
+                   {printf "%s%s (%s/%s)", $4, $1, $2, $3}')
+    max_cwd_len=$(tput cols)
+    if [ "$PV_WIN" = 'right:50%' ]; then
+        max_cwd_len=$((max_cwd_len / 4))
+    else
+        max_cwd_len=$((max_cwd_len / 2))
+    fi
+    cwd=$(pwd | sed "s@$HOME@~@")
+    cwd_len="${#cwd}"
+    [ "$cwd_len" -gt "$max_cwd_len" ] && {
+        cwd=$(echo "$cwd" | tail -c "$max_cwd_len")
+        cwd="...$cwd"
+    }
+    printf '\033[1m\033[34m%s\033[1m: \033[37m%s\033[1m\033[32m%s\033[0m\033[0m' \
+           "$cwd" "$dev" "$git"
+}
+
+preview() {
+    f="$1"
+    if [ -d "$f" ]; then
+        ls --color=always --group-directories-first "$f"
+    else
+        cat "$f" 2>/dev/null ||
+            file "$f"
+    fi
+}
+
+fuzzy() {
+    PV_CMD=
+    PV_CMD="$PV_CMD ls -lhd {} &&"
+    if [ "$USE_STPV" ]; then
+        PV_CMD="$PV_CMD '$SELF' --eval \"stpv {} $PV\""
+    else
+        PV_CMD="$PV_CMD '$SELF' --eval \"preview {}\""
+    fi
+    fzf_base                       \
+        --multi                    \
+        --preview-window="$PV_WIN" \
+        --preview="$PV_CMD"        \
+        --layout=reverse           \
+        --bind "$bindings"         \
+        --header="$(header)"       \
+        --info=inline              \
+        "$@"
+}
+
+update_term_size() {
+    W=$(tput cols)
+    H=$(tput lines)
+    COLS=$(tput cols)
+    LINS=$(tput lines)
+    if [ "$W" -gt $((H * 2 + 10)) ]; then
+        PV_WIN='right:50%'
+        X=$((COLS / 2 + 2))
+        Y=2
+        W=$((((COLS - 1) / 2) - 2))
+        H=$((LINS - 3))
+    else
+        PV_WIN='down:50%'
+        X=1
+        Y=$((LINS / 2 + 2))
+        W=$((COLS - 2))
+        H=$((((LINS - 1) / 2) - 2))
+    fi
+    PV="$W $H $X $Y $ID"
+}
+
+doit() {
+    [ ! -t 0 ] && {
+        if exists theterm; then
+            exec theterm "$SELF"
+        else
+            exec "$TERMINAL" -e "$SELF"
+        fi
+    }
+
+    [ "$FMZ_SHELL" ] && {
+        echo "Already in a shell inside of $NAME."
+        echo "To force nested instances, clear FMZ_SHELL."
+        return 1
+    }
+
+    exists stpv && USE_STPV=1
+    update_term_size
+    [ "$USE_STPV" ] &&
+        stpvimg --listen $ID 2>/dev/null &
+
+    archive_mnt=
+    res=.
+    q=
+    while :; do
+        if [ "$HACKY" ] && [ -f "$LAST_FILE" ]; then
+            {
+                is_int () { test "$@" -eq "$@" 2> /dev/null; }
+                sleep .1
+                n=$(grep "^$(realpath .) " "$LAST_FILE" |
+                        tail -n1 | grep -o '[^ ]*$')
+                is_int "$n" && for i in $(seq "$n"); do
+                    xdotool key Down
+                done
+            } &
+        fi
+
+        res=$(list | fuzzy -q "$q" | tail -n1)
+        [ "$USE_STPV" ] &&
+            stpvimg --clear $ID
+
+        if [ -e "$res" ]; then
+            q=
+            if [ -f "$res" ]; then
+                if exists archivemount && isarchive "$res"; then
+                    archive_mnt=$(archive_mount "$res")
+                    [ -L "$archive_mnt" ] && {
+                        cd "$archive_mnt" || return 1
+                    }
+                elif exists open; then
+                    open "$res"
+                elif exists xdg-open; then
+                    xdg-open "$res"
+                else
+                    less -c "$res"
+                fi 2>/dev/null
+                # q="$res"
+            elif [ -d "$res" ]; then
+                cd "$res" || return 1
+
+                for mnt in "$PWD/"*-archive; do
+                    [ -L "$mnt" ] && {
+                        arc=$(echo "$mnt" |
+                                  sed -En 's/(.+)\-archive/\1/p')
+                        archive_umount "$arc"
+                    }
+                done
+            fi
+
+        elif echo "$res" | grep -q '^\$'; then
+            # because fzf messes with stdin and out
+            # so, we can exit with a command to be executed
+            cmd=$(echo "$res" | sed 's/^\$ *//')
+            eval "$cmd"
+
+        else
+            break
+        fi
+        update_term_size
+    done
+
+    tput rmcup
+
+    [ "$USE_STPV" ] &&
+        stpvimg --end $ID
+
+    rm -f "$TMP_FILE"
+    [ "$HACKY" ] && rm -f "$LAST_FILE"
+
+    if [ -f "$CD" ]; then
+        pwd > "$CD"
+    else
+        pwd
+    fi
+}
+
+main() {
+    case "$1" in
+        --cd)
+            CD="$2"
+            shift 2
+    esac
+
+    case "$1" in
+        --eval) shift; eval "$@" ;;
+        *)             doit
+    esac
+}
+
+main "$@"
