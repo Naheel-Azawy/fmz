@@ -1,6 +1,8 @@
 * FMZ
   File manager in a fuzzy finder.
 
+  [[./vid/fmz-2021-04-03_05.16.10.mp4]]
+
 ** Dependencies
    core utils and [[https://github.com/junegunn/fzf][fzf]].
 
