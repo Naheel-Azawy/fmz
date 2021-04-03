@@ -16,6 +16,7 @@
    | gio or [[https://github.com/andreafrancia/trash-cli][trash-cli]]   | XDG trash                         |
    | xclip              | copy file names to X clipboard    |
    | [[https://github.com/mwh/dragon][dragon]]             | drag and drop                     |
+   | [[https://github.com/sharkdp/fd][fd]]                 | better find                       |
 
 ** Shell integration
    - sh
@@ -57,6 +58,9 @@
      bookmark ~/Documents
      bookmark ~/Pictures
      bookmark ~/Videos
+
+     OPENER=xdg-open
+     TERMINAL=st
    #+end_src
 
 ** License

@@ -52,6 +52,7 @@ cmd_move="execute-silent('$SELF' --eval move {+f})+clear-selection"
 cmd_paste="abort+execute(echo '\$ paste')"
 cmd_rename="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ rename $TMP_FILE')"
 cmd_delete="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ delete $TMP_FILE')"
+cmd_search="abort+execute(echo '\$ search')"
 cmd_goto="abort+execute('$SELF' --eval goto)"
 cmd_refresh="abort+execute(echo .)"
 cmd_tog_hidden="execute-silent('$SELF' --eval tog_hidden)+$cmd_reload"
@@ -112,6 +113,7 @@ bind ctrl-x     "$cmd_move"       'Cut'
 bind ctrl-v     "$cmd_paste"      'Paste'
 bind f2         "$cmd_rename"     'Rename'
 bind del        "$cmd_delete"     'Delete'
+bind ctrl-f     "$cmd_search"     'Search for files here'
 bind ctrl-l     "$cmd_goto"       'Go to'
 bind f5         "$cmd_refresh"    'Refresh'
 bind ctrl-h     "$cmd_tog_hidden" 'Show/hide hidden files'
@@ -349,6 +351,21 @@ menu() {
     esac
 }
 
+search() {
+    res=$(if exists fd; then
+              fd --color=always -H -t f
+          else
+              find . -type f
+          fi | fzf_base                       \
+                   --preview-window="$PV_WIN" \
+                   --preview="$(pv_cmd)"      \
+                   --layout=reverse           \
+                   --info=inline)
+    d=$(dirname "$res")
+    q=$(basename "$res")
+    cd "$d" || return 1
+}
+
 copy() {
     files=$(while read -r f; do realpath "$f"; done < "$1")
     exists xclip &&
@@ -432,7 +449,7 @@ rename() {
         f="$files"
         name=$(echo | menu_interface \
                           --query "$f" \
-                          --prompt "Rename $f to> ")
+                          --prompt "Rename> ")
         [ "$name" ] && {
             if [ -e "$name" ]; then
                 echo "$name already exists"
@@ -603,18 +620,22 @@ preview() {
     fi
 }
 
-fuzzy() {
-    PV_CMD=
-    PV_CMD="$PV_CMD ls -lhd {} &&"
+pv_cmd() {
+    cmd=
+    cmd="$cmd ls -lhd {} &&"
     if [ "$USE_STPV" ]; then
-        PV_CMD="$PV_CMD '$SELF' --eval \"stpv {} $PV\""
+        cmd="$cmd '$SELF' --eval \"stpv {} $PV\""
     else
-        PV_CMD="$PV_CMD '$SELF' --eval \"preview {}\""
+        cmd="$cmd '$SELF' --eval \"preview {}\""
     fi
+    echo "$cmd"
+}
+
+fuzzy() {
     fzf_base                       \
         --multi                    \
         --preview-window="$PV_WIN" \
-        --preview="$PV_CMD"        \
+        --preview="$(pv_cmd)"      \
         --layout=reverse           \
         --bind "$bindings"         \
         --header="$(header)"       \
@@ -644,13 +665,8 @@ update_term_size() {
 }
 
 doit() {
-    [ ! -t 0 ] && {
-        if exists theterm; then
-            exec theterm "$SELF"
-        else
-            exec "$TERMINAL" -e "$SELF"
-        fi
-    }
+    [ ! -t 0 ] &&
+        exec "$TERMINAL" -e "$SELF"
 
     [ "$FMZ_SHELL" ] && {
         echo "Already in a shell inside of $NAME."
@@ -691,6 +707,8 @@ doit() {
                     [ -L "$archive_mnt" ] && {
                         cd "$archive_mnt" || return 1
                     }
+                elif [ "$OPENER" ]; then
+                    "$OPENER" "$res"
                 elif exists open; then
                     open "$res"
                 elif exists xdg-open; then
