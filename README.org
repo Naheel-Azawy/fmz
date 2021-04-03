@@ -20,6 +20,7 @@
    | xclip              | copy file names to X clipboard    |
    | [[https://github.com/mwh/dragon][dragon]]             | drag and drop                     |
    | [[https://github.com/sharkdp/fd][fd]]                 | better find                       |
+   | perl-file-mimeinfo | XDG open with                     |
 
 ** Shell integration
    - sh

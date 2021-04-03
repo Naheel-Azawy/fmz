@@ -318,6 +318,10 @@ menu_interface() {
 menu() {
     f=$(head -n1 "$1")
     res=$({
+             exists mimeopen && {
+                 echo 'Open with'
+                 echo 'Set default'
+             }
              echo 'Copy'
              echo 'Move'
              echo 'Paste'
@@ -334,6 +338,8 @@ menu() {
              echo 'Help'
          } | menu_interface --prompt "$f> ")
     case "$res" in
+        'Open with')       open_with       "$f" ;;
+        'Set default')     open_with_def   "$f" ;;
         'Copy')            copy            "$1" ;;
         'Move')            move            "$1" ;;
         'Paste')           paste                ;;
@@ -364,6 +370,26 @@ search() {
     d=$(dirname "$res")
     q=$(basename "$res")
     cd "$d" || return 1
+}
+
+open_with_pick() {
+    echo |
+        mimeopen --ask "$1" 2>/dev/null |
+        sed -En 's/\s*(.+\)\s+.+)/\1/p' |
+        menu_interface |
+        sed -En 's/(.+)\).+/\1/p'
+}
+
+open_with() {
+    n=$(open_with_pick "$1")
+    [ "$n" ] && echo "$n" |
+            mimeopen --ask "$1" >/dev/null 2>/dev/null &
+}
+
+open_with_def() {
+    n=$(open_with_pick "$1")
+    [ "$n" ] && echo "$n" |
+            mimeopen --ask-default "$1" >/dev/null 2>/dev/null &
 }
 
 copy() {
