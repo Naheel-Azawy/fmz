@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=fmz
+Comment=Fuzzy file manager
+Icon=utilities-terminal
+Terminal=false
+Exec=fmz %F
+Categories=ConsoleOnly;System;FileTools;FileManager
+MimeType=inode/directory;

@@ -862,7 +862,7 @@ update_term_size() {
 
 doit() {
     [ ! -t 0 ] &&
-        exec "$TERMINAL" -e "$SELF"
+        exec "$TERMINAL" -e "$SELF" "$@"
 
     [ "$FMZ_SHELL" ] && {
         echo "Already in a shell inside of $NAME."
@@ -961,7 +961,11 @@ main() {
 
     case "$1" in
         --eval) shift; "$@" ;;
-        *)             doit
+        *)
+            [ -d "$1" ] && {
+                cd "$1" || return 1
+            }
+            doit "$@"
     esac
 }
 
