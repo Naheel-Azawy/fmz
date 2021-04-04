@@ -21,6 +21,8 @@
    | [[https://github.com/mwh/dragon][dragon]]             | drag and drop                     |
    | [[https://github.com/sharkdp/fd][fd]]                 | better find                       |
    | perl-file-mimeinfo | XDG open with                     |
+   | udisks2            | mount and unmount devices         |
+   | [[https://github.com/phatina/simple-mtpfs/][simple-mtpfs]] ([[https://aur.archlinux.org/packages/simple-mtpfs/][AUR]]) | mount and unmount MTP devices     |
 
 ** Shell integration
    - sh

@@ -28,6 +28,11 @@ TMP_FILE="/tmp/$NAME-tmp-$ID"
 HACKY=
 [ "$HACKY" ] && LAST_FILE="/tmp/$NAME-last-$ID"
 
+# not really sure if this is a good place
+# suggestions are welcomed
+MOUNTS_DIR="$HOME/.local/media"
+mkdir -p "$MOUNTS_DIR"
+
 # global parameters
 
 CD=
@@ -138,7 +143,9 @@ bookmark ~/Projects
 mkdir -p "$CFG_DIR"
 [ -f "$CFG_FILE" ] && . "$CFG_FILE"
 
-# archive utils
+# utils =========================
+
+# archive utils ===
 
 isarchive() {
     case "$1" in
@@ -217,7 +224,6 @@ archive_umount() {
 }
 
 archive_mount() {
-    lf= && [ "$1" = '--lfid' ] && lf="$2" && shift 2
     p=$(realpath "$1")
     d=$(dirname "$p")
     mntpath=$(archive_getmnt "$p")
@@ -284,6 +290,145 @@ mkzip() {
     shift
     $s zip -j -r "$n".zip "$@"
 }
+
+# devices utils ===
+
+MOUNTED='▮'
+UNMOUNTED='▯'
+
+is_mounted() {
+    check=$(echo "$@" | cut -d ' ' -f1)
+    [ "$check" = "$MOUNTED" ]
+}
+
+# blocks
+
+blocks_ls() {
+    blocks=$(lsblk -rpo 'name,type,mountpoint' | tac |
+          sed 's/\\x20/ /g')
+    echo "$blocks" | while read -r name type mp; do
+        case "$type" in
+            part|lvm)
+                if [ -e "$mp" ]; then
+                    fsavail=$(lsblk -no fsavail "$name" | xargs)
+                    fssize=$(lsblk -no fssize "$name" | xargs)
+                    echo "$MOUNTED#$name#$mp#($fsavail/$fssize)"
+                elif [ ! "$mp" ]; then
+                    label=$(lsblk -no label "$name")
+                    echo "$UNMOUNTED#$name#$label"
+                fi
+        esac
+    done
+}
+
+blocks_mount() {
+    is_mounted "$@" && return 1
+    dev=$(echo "$@" | awk '{print $2}')
+    udisksctl mount -b "$dev" 2>&1
+}
+
+blocks_unmount() {
+    is_mounted "$@" || return 1
+    dev=$(echo "$@" | awk '{print $2}')
+    udisksctl unmount -b "$dev" 2>&1
+}
+
+blocks_mountpoint() {
+    dev=$(echo "$@" | awk '{print $2}')
+    mp=$(lsblk -no mountpoint "$dev")
+    [ -e "$mp" ] && echo "$mp"
+}
+
+# mtp
+
+mtp_ls() {
+    exists simple-mtpfs || return 0
+    mounted=$(command ls -1 "$MOUNTS_DIR")
+    [ "$mounted" ] && echo "$mounted" | while read -r d; do
+            num=$(echo "$d" | cut -d : -f1)
+            if mountpoint -q "$MOUNTS_DIR/$d"; then
+                echo "$MOUNTED#MTP/$num#$MOUNTS_DIR/$d"
+            else
+                rmdir "$MOUNTS_DIR/$d"
+            fi
+        done
+    mounted=$(command ls -1 "$MOUNTS_DIR")
+    if [ "$mounted" ]; then
+        simple-mtpfs -l | grep -v "$mounted"
+    else
+        simple-mtpfs -l
+    fi 2>/dev/null | while read -r d; do
+        num=$(echo "$d" | cut -d : -f1)
+        echo "$UNMOUNTED#MTP/$num#$d"
+    done
+}
+
+mtp_mount() {
+    is_mounted "$@" && return 1
+    dev=$(echo "$@" | awk '{$1=$2="";print $0}' | xargs)
+    num=$(echo "$dev" | cut -d : -f1)
+    mkdir -p "$MOUNTS_DIR/$dev"
+    if simple-mtpfs --device "$num" "$MOUNTS_DIR/$dev" 2>&1; then
+        echo "Mounted $dev at $MOUNTS_DIR/$dev"
+    else
+        echo "Failed mounting $dev"
+    fi
+}
+
+mtp_unmount() {
+    is_mounted "$@" || return 1
+    mp=$(echo "$@" | awk '{$1=$2="";print $0}' | xargs)
+    {
+        fusermount -u "$mp" &&
+            rmdir "$mp" &&
+            echo "Unmounted $mp"
+    } 2>&1
+}
+
+mtp_mountpoint() {
+    mp=$(echo "$@" | awk '{$1=$2="";print $0}' | xargs)
+    [ -d "$mp" ] && echo "$mp"
+}
+
+# TODO: add ifuse interface
+
+# all
+
+devs_ls() {
+    {
+        mtp_ls
+        blocks_ls
+    } | column -t -s'#'
+}
+
+devs_mount() {
+    dev=$(echo "$@" | awk '{print $2}')
+    case "$dev" in
+        /dev/*) blocks_mount "$@" ;;
+        MTP*)   mtp_mount    "$@" ;;
+        *)      return 1 ;;
+    esac
+}
+
+devs_unmount() {
+    dev=$(echo "$@" | awk '{print $2}')
+    case "$dev" in
+        /dev/*) blocks_unmount "$@" ;;
+        MTP*)   mtp_unmount    "$@" ;;
+        *)      return 1 ;;
+    esac
+}
+
+devs_mountpoint() {
+    dev=$(echo "$@" | awk '{print $2}')
+    case "$dev" in
+        /dev/*) blocks_mountpoint "$@" ;;
+        MTP*)   mtp_mountpoint    "$@" ;;
+        *)      return 1 ;;
+    esac
+}
+
+# utils (END) ===================
 
 # for fzf preview
 PV_SHELL=bash
@@ -531,22 +676,47 @@ mkarchive() {
 }
 
 goto() {
-    res=$({
-             realpath .
-             echo "$bookmarks" | tr ':' '\n'
-             lsblk -rpo "name,type,fsavail,fssize,mountpoint,label" |
-                 awk '
-                   $6 != "" { $6 = $6" " };
-                   ($2=="part"||$2=="lvm") && $5 != "" {
-                     printf "Partition %s#%s#%s#(%s/%s)\n", $5, $1, $6, $3, $4
-                   }' |
-                 tac | column -t -s'#'
-         } | menu_interface --prompt 'Go to> ')
+    tmp=$(mktemp)
+    b="ctrl-u:abort+execute('$SELF' --eval devs_unmount {} > '$tmp'; echo AGAIN)"
+    pv='echo Press ctrl-u to unmount devices if any'
 
-    case "$res" in
-        Partition*) res=$(echo "$res" | cut -d ' ' -f2) ;;
-        *) [ -d "$res" ] || res="$PWD"
-    esac
+    res=AGAIN
+    while [ "$res" = AGAIN ]; do
+        res=$({
+                 realpath .
+                 echo "$bookmarks" | tr ':' '\n'
+                 devs_ls
+             } | menu_interface \
+                     --bind="$b" \
+                     --preview="$pv" \
+                     --preview-window='bottom:1%' \
+                     --prompt='Go to> ')
+
+        case "$res" in
+            "$MOUNTED"*)
+                res=$(devs_mountpoint "$res") ;;
+            "$UNMOUNTED"*)
+                devs_mount "$res" > "$tmp" &&
+                    res=$(devs_mountpoint "$res") ;;
+        esac
+
+        mnt_out=$(cat "$tmp")
+        [ "$mnt_out" ] && {
+            msg='\nPress enter to continue...'
+            echo | fzf \
+                       --preview="cat '$tmp'; printf '$msg'" \
+                       --preview-window='top:99%:wrap' \
+                       --info=hidden \
+                       --prompt=' ' \
+                       --pointer=' ' \
+                       --color='bg+:-1' \
+                       >/dev/null
+            echo > "$tmp"
+        }
+    done
+
+    rm -f "$tmp"
+    [ -d "$res" ] || res="$PWD"
     echo "$res"
 }
 
@@ -650,9 +820,9 @@ pv_cmd() {
     cmd=
     cmd="$cmd ls -lhd {} &&"
     if [ "$USE_STPV" ]; then
-        cmd="$cmd '$SELF' --eval \"stpv {} $PV\""
+        cmd="$cmd '$SELF' --eval stpv {} $PV"
     else
-        cmd="$cmd '$SELF' --eval \"preview {}\""
+        cmd="$cmd '$SELF' --eval preview {}"
     fi
     echo "$cmd"
 }
@@ -790,7 +960,7 @@ main() {
     esac
 
     case "$1" in
-        --eval) shift; eval "$@" ;;
+        --eval) shift; "$@" ;;
         *)             doit
     esac
 }
