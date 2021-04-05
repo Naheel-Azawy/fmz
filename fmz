@@ -818,6 +818,7 @@ preview() {
 
 pv_cmd() {
     cmd=
+    cmd="printf '(%d) ' \$(({n} + 1)) &&"
     cmd="$cmd ls -lhd {} &&"
     if [ "$USE_STPV" ]; then
         cmd="$cmd '$SELF' --eval stpv {} $PV"
@@ -878,19 +879,22 @@ doit() {
     archive_mnt=
     res=.
     while :; do
+        hacky_sel_cmd='execute-silent(true)'
         if [ "$HACKY" ] && [ -f "$LAST_FILE" ]; then
+            is_int () { test "$@" -eq "$@" 2> /dev/null; }
+            sleep .1
+            n=$(grep "^$(realpath .) " "$LAST_FILE" |
+                    tail -n1 | grep -o '[^ ]*$')
+            is_int "$n" && for i in $(seq "$n"); do
+                hacky_sel_cmd="$hacky_sel_cmd+down"
+            done
             {
-                is_int () { test "$@" -eq "$@" 2> /dev/null; }
                 sleep .1
-                n=$(grep "^$(realpath .) " "$LAST_FILE" |
-                        tail -n1 | grep -o '[^ ]*$')
-                is_int "$n" && for i in $(seq "$n"); do
-                    xdotool key Down
-                done
+                xdotool key ctrl+j
             } &
         fi
 
-        res=$(list | fuzzy -q "$query" | tail -n1)
+        res=$(list | fuzzy -q "$query" --bind "ctrl-j:$hacky_sel_cmd" | tail -n1)
         [ "$USE_STPV" ] &&
             stpvimg --clear $ID
 
@@ -913,7 +917,7 @@ doit() {
                 fi 2>/dev/null
                 # query="$res"
             elif [ -d "$res" ]; then
-                cd "$res" || return 1
+                cd "$res" ||:
 
                 for mnt in "$PWD/"*-archive; do
                     [ -L "$mnt" ] && {
