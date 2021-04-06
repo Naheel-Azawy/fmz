@@ -25,7 +25,7 @@ HIDDEN_FILE=/tmp/$NAME-hidden
 SORT_FILE=/tmp/$NAME-sort
 TMP_FILE="/tmp/$NAME-tmp-$ID"
 
-HACKY=
+HACKY=1
 [ "$HACKY" ] && LAST_FILE="/tmp/$NAME-last-$ID"
 
 # not really sure if this is a good place
@@ -149,7 +149,7 @@ mkdir -p "$CFG_DIR"
 
 isarchive() {
     case "$1" in
-        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2|*.tar.gz|*.tgz|*.tar.xz|*.txz|*.zip|*.apk|*.jar|*.rar|*.iso)
+        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2|*.tar.gz|*.tgz|*.tar.xz|*.txz|*.zip|*.apk|*.jar|*.rar|*.iso|*.7z)
             return 0;;
         *)  return 1;;
     esac
@@ -289,6 +289,13 @@ mkzip() {
     n="$1"
     shift
     $s zip -j -r "$n".zip "$@"
+}
+
+mk7z() {
+    s='' && [ ! -w . ] && s='sudo'
+    n="$1"
+    shift
+    $s 7z a "$n".7z "$@"
 }
 
 # devices utils ===
@@ -667,11 +674,17 @@ mknew() {
 
 mkarchive() {
     files=$(while read -r f; do realpath "$f"; done < "$1")
-    type=$(printf 'ZIP\nTAR' | menu_interface --prompt "Archive type> ")
+    echo "$files" > ~/aaaaaaaaa
+    type=$({
+              exists zip && echo ZIP
+              exists tar && echo TAR
+              exists 7z  && echo 7Z
+          } | menu_interface --prompt "Archive type> ")
     name=$(echo | menu_interface --prompt 'Archive name> ')
-    case "$type" in
-        ZIP) echo "$files" | xargs "$SELF" --eval mkzip "$name" ;;
-        TAR) echo "$files" | xargs "$SELF" --eval mktar "$name" ;;
+    printf '%s' "$files" | case "$type" in
+        ZIP) xargs -d '\n' "$SELF" --eval mkzip "$name" ;;
+        TAR) xargs -d '\n' "$SELF" --eval mktar "$name" ;;
+        7Z)  xargs -d '\n' "$SELF" --eval mk7z  "$name" ;;
     esac
 }
 
