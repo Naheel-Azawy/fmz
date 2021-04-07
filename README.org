@@ -7,7 +7,7 @@
 ** Dependencies
    core utils and [[https://github.com/junegunn/fzf][fzf]].
 
-** Optional dependencies
+** Optional dependencies/features
    Having one of those is not a must, they only unlock new superpowers.
 
    | Dependency         | Superpower                        |
@@ -23,6 +23,11 @@
    | perl-file-mimeinfo | XDG open with                     |
    | udisks2            | mount and unmount devices         |
    | [[https://github.com/phatina/simple-mtpfs/][simple-mtpfs]] ([[https://aur.archlinux.org/packages/simple-mtpfs/][AUR]]) | mount and unmount MTP devices     |
+
+** Installation
+   #+begin_src shell-script
+     make install
+   #+end_src
 
 ** Shell integration
    - sh
@@ -53,6 +58,9 @@
        end
      #+end_src
 
+** Default bindings
+   In general, [[https://en.wikipedia.org/wiki/IBM_Common_User_Access][CUA]]-like bindings where used, M-x for menu, and F1 to show all bindings.
+
 ** Configuration
    For now, only keybindings and bookmarks are configurable. More configs might be added later. Example config file (~/.config/fmzrc.sh):
 
@@ -68,6 +76,21 @@
      OPENER=xdg-open
      TERMINAL=st
    #+end_src
+
+** Why?
+   I tried many other file managers like [[https://en.wikipedia.org/wiki/Midnight_Commander][mc]], [[https://github.com/ranger/ranger][ranger]], [[https://github.com/gokcehan/lf][lf]], [[https://github.com/jarun/nnn][nnn]], [[https://github.com/dylanaraps/fff][fff]], and several others that I forgot.
+   From the GUI world, it worth mentioning nautilus, nemo, thunar, and pantheon's files.
+   They all are cool in some way, but still not as good as I wanted.
+   If you're here, probably there's no need to talk about GUI.
+   Out of all the terminal file managers, lf has been my choice for a pretty long time and I do believe that it is the best out of the ones I just mentioned.
+   However, with time, I started realizing lf problems. Here are some of what I recall:
+   - A bit of unnecessary bloat.
+     lf is relatively so minimal. But, in my opinion, there are some unnecessary parts like the builtin copy implementation and the config parser.
+   - Too much configuration
+     lf is almost unusable out of the box. Minimalism is good of course, but having some sane defaults can be done without being bloated too.
+   - I use fzf anyway...
+     Even inside lf, I used to have a key binding to fzf to find and jump to wherever I want. In practice, I found myself opening fzf almost every time I use lf.
+   I'm not trying to say lf is bad. It is amazing. It just wasn't enough for me.
 
 ** License
    GPL3
