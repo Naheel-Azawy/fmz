@@ -25,7 +25,7 @@ HIDDEN_FILE=/tmp/$NAME-hidden
 SORT_FILE=/tmp/$NAME-sort
 TMP_FILE="/tmp/$NAME-tmp-$ID"
 
-HACKY=1
+HACKY=
 [ "$HACKY" ] && LAST_FILE="/tmp/$NAME-last-$ID"
 
 # not really sure if this is a good place
