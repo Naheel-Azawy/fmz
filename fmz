@@ -889,6 +889,8 @@ doit() {
     [ "$USE_STPV" ] &&
         stpvimg --listen $ID 2>/dev/null &
 
+    [ "$TMUX" ] && tmux set automatic-rename off
+
     archive_mnt=
     res=.
     while :; do
@@ -906,6 +908,11 @@ doit() {
                 xdotool key ctrl+j
             } &
         fi
+
+        [ "$TMUX" ] && {
+            title=$(basename "$(realpath .)")
+            tmux rename-window "$title"
+        }
 
         res=$(list | fuzzy -q "$query" --bind "ctrl-j:$hacky_sel_cmd" | tail -n1)
         [ "$USE_STPV" ] &&
@@ -960,6 +967,8 @@ doit() {
 
     rm -f "$TMP_FILE"
     [ "$HACKY" ] && rm -f "$LAST_FILE"
+
+    [ "$TMUX" ] && tmux set automatic-rename on
 
     if [ -f "$CD" ]; then
         pwd > "$CD"
