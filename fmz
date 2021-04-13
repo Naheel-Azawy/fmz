@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 NAME='fmz'
-SELF="$0"
+SELF=$(realpath "$0")
 ID=$$
 CFG_DIR="$HOME/.config"
 CFG_FILE="$CFG_DIR/${NAME}rc.sh"
@@ -44,25 +44,24 @@ bookmarks="$HOME"
 
 # common commands
 
-cmd_reload="reload('$SELF' --eval list)"
 cmd_open="accept-non-empty"
 cmd_updir="abort+execute(echo ..)"
-cmd_menu="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ menu $TMP_FILE')"
-cmd_new="abort+execute(echo '\$ mknew')"
 cmd_copy="execute-silent('$SELF' --eval copy {+f})+clear-selection"
 cmd_move="execute-silent('$SELF' --eval move {+f})+clear-selection"
+cmd_dnd="execute-silent(dragon -a -x {+})"
+cmd_quit="abort"
+cmd_kill="execute(kill $ID)"
+cmd_menu="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ menu $TMP_FILE')"
+cmd_new="abort+execute(echo '\$ mknew')"
 cmd_paste="abort+execute(echo '\$ paste')"
 cmd_rename="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ rename $TMP_FILE')"
 cmd_delete="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ delete $TMP_FILE')"
 cmd_search="abort+execute(echo '\$ search')"
-cmd_goto="abort+execute('$SELF' --eval goto)"
+cmd_tog_hidden="abort+execute(echo '\$ tog_hidden')"
+cmd_goto="abort+execute(echo '\$ goto')"
 cmd_refresh="abort+execute(echo .)"
-cmd_tog_hidden="execute-silent('$SELF' --eval tog_hidden)+$cmd_reload"
-cmd_dnd="execute-silent(dragon -a -x {+})"
 cmd_shell="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ start_shell $TMP_FILE')"
-cmd_quit="abort"
 cmd_help="abort+execute(echo '\$ show_help')"
-cmd_kill="execute(kill $ID)"
 
 # config helpers
 
@@ -727,7 +726,7 @@ goto() {
 
     rm -f "$tmp"
     [ -d "$res" ] || res="$PWD"
-    echo "$res"
+    cd "$res" ||:
 }
 
 start_shell() {
@@ -758,7 +757,7 @@ lssort() {
 
 list() {
     cmd=
-    cmd="$cmd command ls -1 -N"
+    cmd="$cmd command ls -1 -N -v"
     cmd="$cmd --group-directories-first"
     cmd="$cmd --color=always"
     if [ -f "$HIDDEN_FILE" ]; then
@@ -916,9 +915,6 @@ doit() {
 
         if [ -e "$res" ]; then
             query=
-            if [ -e "$res" ]; then
-                echo "$res" > "$preselector"
-            fi
             if [ -f "$res" ]; then
                 if exists archivemount && isarchive "$res"; then
                     archive_mnt=$(archive_mount "$res")
