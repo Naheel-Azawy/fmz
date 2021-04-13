@@ -23,10 +23,9 @@ CFG_FILE="$CFG_DIR/${NAME}rc.sh"
 OP_FILE=/tmp/$NAME-op
 HIDDEN_FILE=/tmp/$NAME-hidden
 SORT_FILE=/tmp/$NAME-sort
-TMP_FILE="/tmp/$NAME-tmp-$ID"
-
-HACKY=
-[ "$HACKY" ] && LAST_FILE="/tmp/$NAME-last-$ID"
+TMP_DIR="/tmp/$NAME-tmp-$ID"
+TMP_FILE="$TMP_DIR/tmp"
+LAST_FILE="$TMP_DIR/last-"
 
 # not really sure if this is a good place
 # suggestions are welcomed
@@ -47,8 +46,6 @@ bookmarks="$HOME"
 
 cmd_reload="reload('$SELF' --eval list)"
 cmd_open="accept-non-empty"
-[ "$HACKY" ] &&
-    cmd_open="accept-non-empty+execute-silent(echo \"\$(realpath .)\" {n} >> $LAST_FILE)"
 cmd_updir="abort+execute(echo ..)"
 cmd_menu="execute(cp {+f} $TMP_FILE)+abort+execute(echo '\$ menu $TMP_FILE')"
 cmd_new="abort+execute(echo '\$ mknew')"
@@ -889,37 +886,39 @@ doit() {
     [ "$USE_STPV" ] &&
         stpvimg --listen $ID 2>/dev/null &
 
+    USE_PRESELECTOR=
+    fzf --help | grep -q preselector && USE_PRESELECTOR=1
+
+    mkdir -p "$TMP_DIR"
+
     [ "$TMUX" ] && tmux set automatic-rename off
 
     archive_mnt=
     res=.
     while :; do
-        hacky_sel_cmd='execute-silent(true)'
-        if [ "$HACKY" ] && [ -f "$LAST_FILE" ]; then
-            is_int () { test "$@" -eq "$@" 2> /dev/null; }
-            sleep .1
-            n=$(grep "^$(realpath .) " "$LAST_FILE" |
-                    tail -n1 | grep -o '[^ ]*$')
-            is_int "$n" && for i in $(seq "$n"); do
-                hacky_sel_cmd="$hacky_sel_cmd+down"
-            done
-            {
-                sleep .1
-                xdotool key ctrl+j
-            } &
-        fi
+        path_md5=$(realpath . | md5sum - | cut -d ' ' -f1)
+        preselector="${LAST_FILE}${path_md5}"
 
         [ "$TMUX" ] && {
             title=$(basename "$(realpath .)")
             tmux rename-window "$title"
         }
 
-        res=$(list | fuzzy -q "$query" --bind "ctrl-j:$hacky_sel_cmd" | tail -n1)
+        res=$(list | {
+                  if [ "$USE_PRESELECTOR" ]; then
+                      fuzzy -q "$query" --preselector "$preselector"
+                  else
+                      fuzzy -q "$query"
+                  fi
+              } | tail -n1)
         [ "$USE_STPV" ] &&
             stpvimg --clear $ID
 
         if [ -e "$res" ]; then
             query=
+            if [ -e "$res" ]; then
+                echo "$res" > "$preselector"
+            fi
             if [ -f "$res" ]; then
                 if exists archivemount && isarchive "$res"; then
                     archive_mnt=$(archive_mount "$res")
@@ -935,7 +934,6 @@ doit() {
                 else
                     less -c "$res"
                 fi 2>/dev/null
-                # query="$res"
             elif [ -d "$res" ]; then
                 cd "$res" ||:
 
@@ -965,8 +963,7 @@ doit() {
     [ "$USE_STPV" ] &&
         stpvimg --end $ID
 
-    rm -f "$TMP_FILE"
-    [ "$HACKY" ] && rm -f "$LAST_FILE"
+    rm -rf "$TMP_DIR"
 
     [ "$TMUX" ] && tmux set automatic-rename on
 
