@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 NAME='fmz'
+FZF='fzf'
 SELF=$(realpath "$0")
 ID=$$
 CFG_DIR="$HOME/.config"
@@ -438,7 +439,7 @@ PV_SHELL=bash
 exists dash && PV_SHELL=dash
 
 fzf_base() {
-    SHELL="$PV_SHELL" fzf           \
+    SHELL="$PV_SHELL" "$FZF"        \
          --ansi                     \
          --layout=reverse           \
          --no-clear                 \
@@ -712,7 +713,7 @@ goto() {
         mnt_out=$(cat "$tmp")
         [ "$mnt_out" ] && {
             msg='\nPress enter to continue...'
-            echo | fzf \
+            echo | "$FZF" \
                        --preview="cat '$tmp'; printf '$msg'" \
                        --preview-window='top:99%:wrap' \
                        --info=hidden \
@@ -870,6 +871,11 @@ update_term_size() {
     PV="$W $H $X $Y $ID"
 }
 
+preselector_file() {
+    sum=$(realpath "$1" | cksum | cut -d ' ' -f1)
+    echo "${LAST_FILE}${sum}"
+}
+
 doit() {
     [ ! -t 0 ] &&
         exec "$TERMINAL" -e "$SELF" "$@"
@@ -886,7 +892,7 @@ doit() {
         stpvimg --listen $ID 2>/dev/null &
 
     USE_PRESELECTOR=
-    fzf --help | grep -q preselector && USE_PRESELECTOR=1
+    "$FZF" --help | grep -q preselector && USE_PRESELECTOR=1
 
     mkdir -p "$TMP_DIR"
 
@@ -895,8 +901,7 @@ doit() {
     archive_mnt=
     res=.
     while :; do
-        path_md5=$(realpath . | md5sum - | cut -d ' ' -f1)
-        preselector="${LAST_FILE}${path_md5}"
+        preselector=$(preselector_file .)
 
         [ "$TMUX" ] && {
             title=$(basename "$(realpath .)")
@@ -931,6 +936,10 @@ doit() {
                     less -c "$res"
                 fi 2>/dev/null
             elif [ -d "$res" ]; then
+                if [ "$res" = '..' ]; then
+                    basename "$PWD" > "$(preselector_file ..)"
+                fi
+
                 cd "$res" ||:
 
                 for mnt in "$PWD/"*-archive; do
