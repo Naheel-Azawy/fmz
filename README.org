@@ -62,17 +62,29 @@
    In general, [[https://en.wikipedia.org/wiki/IBM_Common_User_Access][CUA]]-like bindings where used, M-x for menu, and F1 to show all bindings.
 
 ** Configuration
-   For now, only keybindings and bookmarks are configurable. More configs might be added later. Example config file (~/.config/fmzrc.sh):
+   Example config file (~/.config/fmzrc.sh):
 
    #+begin_src shell-script
-     bind ctrl-c "$cmd_copy"  'Copy'
-     bind ctrl-x "$cmd_move"  'Cut'
-     bind ctrl-v "$cmd_paste" 'Paste'
+     # basic bindings
+     bind alt-w  fun copy
+     bind ctrl-w fun move
+     bind ctrl-y fun paste
+     bind ctrl-c abort
 
+     # add a function to menu and bind it
+     add_fun myless 'Less a file'
+     bind ctrl-p fun myless
+     myless() {
+         tput rmcup
+         less "$f"
+     }
+
+     # bookmarks
      bookmark ~/Documents
      bookmark ~/Pictures
      bookmark ~/Videos
 
+     # other variables
      OPENER=xdg-open
      TERMINAL=st
    #+end_src
@@ -92,5 +104,8 @@
      Even inside lf, I used to have a key binding to fzf to find and jump to wherever I want. In practice, I found myself opening fzf almost every time I use lf.
    I'm not trying to say lf is bad. It is amazing. It just wasn't enough for me.
 
+** Annoying selection
+   If the pointer and selection get reset after every operation, this is due to fzf not supporting this feature (as of now). There's a discussion in a [[https://github.com/junegunn/fzf/pull/2440][pull request]] regarding this. Feel free to join and/or try my branch.
+   
 ** License
    GPL3
