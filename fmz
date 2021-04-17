@@ -37,7 +37,8 @@ mkdir -p "$MOUNTS_DIR"
 
 CD=
 W= ; H=
-PV= ; PV_WIN= ; USE_STPV=
+PV_W= ; PV_H= ; PV_X= ; PV_Y= ;
+PV_WIN= ; USE_STPV=
 
 bindings="ctrl-g:execute(true)"
 bindings_help=""
@@ -801,7 +802,7 @@ list() {
         [ "$sort" ] &&
             cmd="$cmd --sort=$sort"
     fi
-    eval "$cmd"
+    eval "$cmd" "$@"
 }
 
 header() {
@@ -833,9 +834,17 @@ header() {
 }
 
 preview() {
+    use_stpv="$1"
+    shift
     f="$1"
+    id="$6"
+    if [ "$use_stpv" = 1 ]; then
+        stpvimg --clear "$id"
+    fi
     if [ -d "$f" ]; then
-        ls --color=always --group-directories-first "$f"
+        list "$f"
+    elif [ "$use_stpv" = 1 ]; then
+        stpv "$@"
     else
         cat "$f" 2>/dev/null ||
             file "$f"
@@ -843,13 +852,11 @@ preview() {
 }
 
 pv_cmd() {
-    cmd=
-    cmd="printf '(%d) ' \$(({n} + 1)) &&"
-    cmd="$cmd ls -lhd {} &&"
-    if [ "$USE_STPV" ]; then
-        cmd="$cmd '$SELF' --eval stpv {} $PV"
-    else
-        cmd="$cmd '$SELF' --eval preview {}"
+    cmd="printf '(%d) ' \$(({n} + 1))"
+    cmd="$cmd && ls -lhd {}"
+    if [ "$PV_WIN" != 'down:1%' ]; then
+        cmd="$cmd && '$SELF' --eval preview"
+        cmd="$cmd '$USE_STPV' {} $PV_W $PV_H $PV_X $PV_Y $ID"
     fi
     echo "$cmd"
 }
@@ -869,22 +876,22 @@ fuzzy() {
 update_term_size() {
     W=$(tput cols)
     H=$(tput lines)
-    COLS=$(tput cols)
-    LINS=$(tput lines)
-    if [ "$W" -gt $((H * 2 + 10)) ]; then
+    if [ "$W" -le 55 ] && [ "$H" -le 15 ]; then
+        PV_WIN='down:1%'
+        PV_X= ; PV_Y= ; PV_W= ; PV_H=
+    elif [ "$W" -gt $((H * 2 + 10)) ]; then
         PV_WIN='right:50%'
-        X=$((COLS / 2 + 2))
-        Y=2
-        W=$((((COLS - 1) / 2) - 2))
-        H=$((LINS - 3))
+        PV_X=$((W / 2 + 2))
+        PV_Y=2
+        PV_W=$((((W - 1) / 2) - 2))
+        PV_H=$((H - 3))
     else
         PV_WIN='down:50%'
-        X=1
-        Y=$((LINS / 2 + 2))
-        W=$((COLS - 2))
-        H=$((((LINS - 1) / 2) - 2))
+        PV_X=1
+        PV_Y=$((H / 2 + 3))
+        PV_W=$((W - 2))
+        PV_H=$((((H - 1) / 2) - 2))
     fi
-    PV="$W $H $X $Y $ID"
 }
 
 preselector_file() {
