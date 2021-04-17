@@ -27,6 +27,7 @@ SORT_FILE=/tmp/$NAME-sort
 TMP_DIR="/tmp/$NAME-tmp-$ID"
 TMP_FILE="$TMP_DIR/tmp"
 LAST_FILE="$TMP_DIR/last-"
+EMPTY='/EMPTY/'
 
 # not really sure if this is a good place
 # suggestions are welcomed
@@ -802,7 +803,12 @@ list() {
         [ "$sort" ] &&
             cmd="$cmd --sort=$sort"
     fi
-    eval "$cmd" "$@"
+    res=$(eval "$cmd" "$@")
+    if [ "$res" ]; then
+        echo "$res"
+    else
+        echo "$EMPTY"
+    fi
 }
 
 header() {
@@ -852,7 +858,8 @@ preview() {
 }
 
 pv_cmd() {
-    cmd="printf '(%d) ' \$(({n} + 1))"
+    cmd="[ -e {} ]"
+    cmd="$cmd && printf '(%d) ' \$(({n} + 1))"
     cmd="$cmd && ls -lhd {}"
     if [ "$PV_WIN" != 'down:1%' ]; then
         cmd="$cmd && '$SELF' --eval preview"
@@ -980,7 +987,7 @@ doit() {
             cmd=$(echo "$res" | sed 's/^\$ *//')
             eval "$cmd"
 
-        else
+        elif [ "$res" != "$EMPTY" ]; then
             break
         fi
         update_term_size
