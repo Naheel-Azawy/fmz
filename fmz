@@ -553,6 +553,20 @@ paste() {
     rm -f "$OP_FILE"
 }
 
+paste_symlink() {
+    [ -f "$OP_FILE" ] || return
+    load=$(cat "$OP_FILE")
+    mode=$(echo "$load" | sed -n '1p')
+    list=$(echo "$load" | sed '1d')
+
+    if [ "$mode" = copy ]; then
+        echo "$list" | while read -r file; do
+            ln -s "$file" .
+        done
+        rm -f "$OP_FILE"
+    fi
+}
+
 delete() {
     count=$(echo "$fx" | wc -l)
     if [ "$count" -gt 1 ]; then
@@ -963,6 +977,7 @@ conf_init() {
     add_fun copy            'Copy'
     add_fun move            'Move'
     add_fun paste           'Paste'
+    add_fun paste_symlink   'Paste symbolic link'
     add_fun delete          'Delete'
     add_fun rename          'Rename'
     add_fun rename_all      'Rename all'
