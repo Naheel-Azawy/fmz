@@ -62,14 +62,17 @@
    In general, [[https://en.wikipedia.org/wiki/IBM_Common_User_Access][CUA]]-like bindings where used, M-x for menu, and F1 to show all bindings.
 
 ** Configuration
+   Config file is just a shell script that gets sourced in fmz. So be sure not to have the setuid bit set on fmz.
+   Key symbols are as defined by fzf (check ~man fzf~).
+   You can bind fzf actions, functions (using ~fun~), or quick functions that does not need ~f~ and ~fx~ (using ~funq~).
    Example config file (~/.config/fmzrc.sh):
 
    #+begin_src shell-script
      # basic bindings
-     bind alt-w  fun copy
-     bind ctrl-w fun move
-     bind ctrl-y fun paste
-     bind ctrl-c abort
+     bind alt-w  fun  copy
+     bind ctrl-w fun  move
+     bind ctrl-y funq paste
+     bind ctrl-c      abort
 
      # add a function to menu and bind it
      add_fun myless 'Less a file'

@@ -15,11 +15,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# ==== constants ====
+
 NAME='fmz'
 FZF='fzf'
 SELF=$(realpath "$0")
 ID=$$
-CFG_DIR="$HOME/.config"
+[ "$XDG_CONFIG_HOME" ] ||
+    XDG_CONFIG_HOME="$HOME/.config"
+CFG_DIR="$XDG_CONFIG_HOME"
 CFG_FILE="$CFG_DIR/${NAME}rc.sh"
 OP_FILE=/tmp/$NAME-op
 HIDDEN_FILE=/tmp/$NAME-hidden
@@ -29,24 +33,31 @@ TMP_FILE="$TMP_DIR/tmp"
 LAST_FILE="$TMP_DIR/last-"
 EMPTY='/EMPTY/'
 
+# for fzf preview
+PV_SHELL=bash
+
 # not really sure if this is a good place
 # suggestions are welcomed
 MOUNTS_DIR="$HOME/.local/media"
-mkdir -p "$MOUNTS_DIR"
 
-# global parameters
+MOUNTED='▮'
+UNMOUNTED='▯'
+
+# ==== global parameters ====
 
 CD=
 W= ; H=
 PV_W= ; PV_H= ; PV_X= ; PV_Y= ;
 PV_WIN= ; USE_STPV=
 
+# ==== config ====
+
 bindings="ctrl-g:execute(true)"
 bindings_help=""
 bookmarks="$HOME"
 funs=""
 
-# config helpers
+# ==== config helpers ====
 
 add_fun() {
     funs="$funs$1 $2
@@ -119,84 +130,13 @@ show_help() {
     } | less --clear-screen
 }
 
+# ==== utils ====
+
 exists() {
     command -v "$1" >/dev/null
 }
 
-# default config
-
-exists mimeopen && {
-    add_fun open_with     'Open with'
-    add_fun open_with_def 'Set default'
-}
-
-add_fun new             'New file or folder'
-add_fun copy            'Copy'
-add_fun move            'Move'
-add_fun paste           'Paste'
-add_fun delete          'Delete'
-add_fun rename          'Rename'
-add_fun rename_all      'Rename all'
-add_fun sort_normally   'Sort normally'
-add_fun sort_by_time    'Sort by time'
-add_fun sort_by_size    'Sort by size'
-add_fun search          'Search for files here'
-add_fun tog_hidden      'Show/hide hidden files'
-add_fun goto            'Go to'
-add_fun archive_extract 'Extract archive'
-add_fun mkarchive       'Create archive'
-add_fun shell           'Start a shell here'
-add_fun show_help       'Show help screen'
-add_fun menu            'Open menu'
-
-bind enter      "accept-non-empty"       'Open selected item'
-bind right      "accept-non-empty"       'Open selected item'
-bind left       "abort+execute(echo ..)" 'Go to parent directory'
-bind home       "first"                  'Jump to first element'
-bind end        "last"                   'Jump to last element'
-bind shift-up   "toggle+up"              'Mark and move selection up'
-bind shift-down "toggle+down"            'Mark and move selection down'
-bind ctrl-a     "select-all"             'Select all'
-bind ctrl-g     "clear-selection"        'Clear selection'
-bind alt-up     "preview-up"             'Scroll preview up'
-bind alt-down   "preview-down"           'Scroll preview down'
-bind f5         "abort+execute(echo .)"  'Refresh'
-bind alt-x      fun  menu
-bind ctrl-n     funq new
-bind ctrl-c     fun  copy
-bind ctrl-x     fun  move
-bind ctrl-v     funq paste
-bind f2         fun  rename
-bind del        fun  delete
-bind ctrl-f     funq search
-bind ctrl-l     funq goto
-bind ctrl-h     funq tog_hidden
-bind ctrl-s     fun  shell
-bind ctrl-q     "abort" 'Quit'
-bind esc        "abort" 'Quit'
-bind ctrl-k     "execute(kill $ID)" 'Kill program'
-bind f1         funq show_help
-
-exists dragon && {
-    add_fun dnd 'Drag and drop'
-    bind ctrl-d fun dnd
-}
-
-bookmark ~/Documents
-bookmark ~/Pictures
-bookmark ~/Videos
-bookmark ~/Music
-bookmark ~/Downloads
-bookmark ~/Projects
-
-# load config
-
-mkdir -p "$CFG_DIR"
-[ -f "$CFG_FILE" ] && . "$CFG_FILE"
-
-# utils =========================
-
-# archive utils ===
+# ==== archive utils ====
 
 isarchive() {
     case "$1" in
@@ -348,10 +288,7 @@ mk7z() {
     $s 7z a "$n".7z "$@"
 }
 
-# devices utils ===
-
-MOUNTED='▮'
-UNMOUNTED='▯'
+# ==== devices utils ====
 
 is_mounted() {
     check=$(echo "$@" | cut -d ' ' -f1)
@@ -485,11 +422,7 @@ devs_mountpoint() {
     esac
 }
 
-# utils (END) ===================
-
-# for fzf preview
-PV_SHELL=bash
-exists dash && PV_SHELL=dash
+# ==== fzf interface ====
 
 fzf_base() {
     SHELL="$PV_SHELL" "$FZF"        \
@@ -527,6 +460,8 @@ menu() {
     fun=$(echo "$funs" | grep " $res\$" | cut -d ' ' -f1)
     eval "$fun"
 }
+
+# ==== operations ====
 
 search() {
     res=$(if exists fd; then
@@ -790,6 +725,8 @@ sort_by_size() {
     lssort size
 }
 
+# ==== main ui ====
+
 list() {
     cmd=
     cmd="$cmd command ls -1 -N -v"
@@ -1012,7 +949,86 @@ doit() {
     fi
 }
 
+# ==== main ====
+
+conf_init() {
+    # default config
+
+    exists mimeopen && {
+        add_fun open_with     'Open with'
+        add_fun open_with_def 'Set default'
+    }
+
+    add_fun new             'New file or folder'
+    add_fun copy            'Copy'
+    add_fun move            'Move'
+    add_fun paste           'Paste'
+    add_fun delete          'Delete'
+    add_fun rename          'Rename'
+    add_fun rename_all      'Rename all'
+    add_fun sort_normally   'Sort normally'
+    add_fun sort_by_time    'Sort by time'
+    add_fun sort_by_size    'Sort by size'
+    add_fun search          'Search for files here'
+    add_fun tog_hidden      'Show/hide hidden files'
+    add_fun goto            'Go to'
+    add_fun archive_extract 'Extract archive'
+    add_fun mkarchive       'Create archive'
+    add_fun shell           'Start a shell here'
+    add_fun show_help       'Show help screen'
+    add_fun menu            'Open menu'
+
+    bind enter      "accept-non-empty"       'Open selected item'
+    bind right      "accept-non-empty"       'Open selected item'
+    bind left       "abort+execute(echo ..)" 'Go to parent directory'
+    bind home       "first"                  'Jump to first element'
+    bind end        "last"                   'Jump to last element'
+    bind shift-up   "toggle+up"              'Mark and move selection up'
+    bind shift-down "toggle+down"            'Mark and move selection down'
+    bind ctrl-a     "select-all"             'Select all'
+    bind ctrl-g     "clear-selection"        'Clear selection'
+    bind alt-up     "preview-up"             'Scroll preview up'
+    bind alt-down   "preview-down"           'Scroll preview down'
+    bind f5         "abort+execute(echo .)"  'Refresh'
+    bind alt-x      fun  menu
+    bind ctrl-n     funq new
+    bind ctrl-c     fun  copy
+    bind ctrl-x     fun  move
+    bind ctrl-v     funq paste
+    bind f2         fun  rename
+    bind del        fun  delete
+    bind ctrl-f     funq search
+    bind ctrl-l     funq goto
+    bind ctrl-h     funq tog_hidden
+    bind ctrl-s     fun  shell
+    bind ctrl-q     "abort" 'Quit'
+    bind esc        "abort" 'Quit'
+    bind ctrl-k     "execute(kill $ID)" 'Kill program'
+    bind f1         funq show_help
+
+    exists dragon && {
+        add_fun dnd 'Drag and drop'
+        bind ctrl-d fun dnd
+    }
+
+    bookmark ~/Documents
+    bookmark ~/Pictures
+    bookmark ~/Videos
+    bookmark ~/Music
+    bookmark ~/Downloads
+    bookmark ~/Projects
+
+    # load config
+
+    mkdir -p "$CFG_DIR"
+    [ -f "$CFG_FILE" ] && . "$CFG_FILE"
+}
+
 main() {
+    exists dash && PV_SHELL=dash
+    mkdir -p "$MOUNTS_DIR"
+    conf_init
+
     case "$1" in
         --cd)
             CD="$2"
