@@ -803,7 +803,10 @@ list() {
         [ "$sort" ] &&
             cmd="$cmd --sort=$sort"
     fi
-    res=$(eval "$cmd" "$@")
+    if [ "$1" ]; then
+        cmd="$cmd '$1'"
+    fi
+    res=$(eval "$cmd")
     if [ "$res" ]; then
         echo "$res"
     else
