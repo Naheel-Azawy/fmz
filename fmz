@@ -452,6 +452,7 @@ menu_interface() {
 
 menu() {
     res=$(echo "$funs"         |
+              grep .           |
               grep -v '^menu ' |
               cut -d ' ' -f2-  |
               menu_interface \
@@ -880,8 +881,6 @@ doit() {
 
     mkdir -p "$TMP_DIR"
 
-    [ "$TMUX" ] && tmux set automatic-rename off
-
     archive_mnt=
     res=.
     while :; do
@@ -889,6 +888,7 @@ doit() {
 
         [ "$TMUX" ] && {
             title=$(basename "$(realpath .)")
+            tmux set automatic-rename off
             tmux rename-window "$title"
         }
 
@@ -910,15 +910,18 @@ doit() {
                     [ -L "$archive_mnt" ] && {
                         cd "$archive_mnt" || return 1
                     }
-                elif [ "$OPENER" ]; then
-                    "$OPENER" "$res"
-                elif exists open; then
-                    open "$res"
-                elif exists xdg-open; then
-                    xdg-open "$res"
                 else
-                    less -c "$res"
-                fi 2>/dev/null
+                    [ "$TMUX" ] && tmux set automatic-rename on
+                    if [ "$OPENER" ]; then
+                        "$OPENER" "$res"
+                    elif exists open; then
+                        open "$res"
+                    elif exists xdg-open; then
+                        xdg-open "$res"
+                    else
+                        less -c "$res"
+                    fi 2>/dev/null
+                fi
             elif [ -d "$res" ]; then
                 if [ "$res" = '..' ]; then
                     basename "$PWD" > "$(preselector_file ..)"
