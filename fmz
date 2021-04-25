@@ -597,6 +597,7 @@ rename() {
     count=$(echo "$fx" | wc -l)
 
     if [ "$count" = 1 ]; then
+        f=$(basename "$f")
         name=$(echo | menu_interface \
                           --query "$f" \
                           --prompt "Rename> ")
@@ -767,13 +768,9 @@ list() {
 }
 
 header() {
-    [ -f /usr/share/git/completion/git-prompt.sh ] && {
-        . /usr/share/git/completion/git-prompt.sh
-        GIT_PS1_SHOWDIRTYSTATE=auto
-        GIT_PS1_SHOWSTASHSTATE=auto
-        GIT_PS1_SHOWUNTRACKEDFILES=auto
-        GIT_PS1_SHOWUPSTREAM=auto
-        git=$(__git_ps1 " (%s)")
+    exists git && {
+        git=$(git branch 2>/dev/null)
+        [ "$git" ] && git=" ($git)"
     }
     dev=$(findmnt -T . -no "source,avail,size,label" |
               awk '$4 != "" {$4 = $4" "};
