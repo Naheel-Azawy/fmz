@@ -686,16 +686,10 @@ goto() {
 
         mnt_out=$(cat "$tmp")
         [ "$mnt_out" ] && {
-            msg='\nPress enter to continue...'
-            echo | "$FZF" \
-                       --preview="cat '$tmp'; printf '$msg'" \
-                       --preview-window='top:99%:wrap' \
-                       --info=hidden \
-                       --prompt=' ' \
-                       --pointer=' ' \
-                       --color='bg+:-1' \
-                       >/dev/null
-            echo > "$tmp"
+            tput rmcup
+            echo "$mnt_out"
+            echo 'Press enter to continue...'
+            read -r
         }
     done
 
