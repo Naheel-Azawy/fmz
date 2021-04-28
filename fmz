@@ -251,7 +251,7 @@ archive_extract() {
     s='' && [ ! -w . ] && s='sudo'
     out="$f-extracted"
     if [ ! "$here" ]; then
-        $s mkdir -p "$out" && cd "$out" || return 1
+        $s mkdir -p "$out" && cd -- "$out" || return 1
     fi
     # https://xkcd.com/1168/
     case "$f" in
@@ -476,7 +476,7 @@ search() {
                    --info=inline)
     d=$(dirname "$res")
     query=$(basename "$res")
-    cd "$d" || return 1
+    cd -- "$d" || return 1
 }
 
 open_with_pick() {
@@ -624,7 +624,7 @@ mkfolder() {
        echo "$name already exists"
     elif [ "$name" ]; then
         mkdir -p "$name"
-        cd "$name" || return 1
+        cd -- "$name" || return 1
     fi
 }
 
@@ -691,11 +691,11 @@ goto() {
             echo 'Press enter to continue...'
             read -r
         }
+        rm -f "$tmp"
     done
 
-    rm -f "$tmp"
     [ -d "$res" ] || res="$PWD"
-    cd "$res" ||:
+    cd -- "$res" ||:
 }
 
 shell() {
@@ -899,7 +899,7 @@ doit() {
                 if exists archivemount && isarchive "$res"; then
                     archive_mnt=$(archive_mount "$res")
                     [ -L "$archive_mnt" ] && {
-                        cd "$archive_mnt" || return 1
+                        cd -- "$archive_mnt" || return 1
                     }
                 else
                     [ "$TMUX" ] && tmux set automatic-rename on
@@ -918,7 +918,7 @@ doit() {
                     basename "$PWD" > "$(preselector_file ..)"
                 fi
 
-                cd "$res" ||:
+                cd -- "$res" ||:
 
                 for mnt in "$PWD/"*-archive; do
                     [ -L "$mnt" ] && {
@@ -1049,11 +1049,11 @@ main() {
         *)
             query=
             if [ -d "$1" ]; then
-                cd "$1" || return 1
+                cd -- "$1" || return 1
             elif [ -f "$1" ]; then
                 d=$(dirname "$1")
                 query=$(basename "$1")
-                cd "$d" || return 1
+                cd -- "$d" || return 1
             fi
             doit "$@"
     esac
