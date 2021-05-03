@@ -14,7 +14,6 @@
    |--------------------+-----------------------------------|
    | [[https://github.com/Naheel-Azawy/stpv][stpv]]               | better previews with images       |
    | [[https://github.com/Naheel-Azawy/cp-p][cp-p]]               | show progress of cp and mv        |
-   | vidir (moreutils)  | rename files using with an editor |
    | [[https://github.com/cybernoid/archivemount][archivemount]] ([[https://aur.archlinux.org/packages/archivemount/][AUR]]) | browse archives seamlessly        |
    | gio or [[https://github.com/andreafrancia/trash-cli][trash-cli]]   | XDG trash                         |
    | xclip              | copy file names to X clipboard    |

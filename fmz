@@ -609,13 +609,37 @@ rename() {
             fi
         }
     else
-        exists vidir &&
-            echo "$fx" | vidir -
+        rename_all "$fx"
     fi
 }
 
-renameall() {
-    exists vidir && vidir .
+rename_all() {
+    originf="$TMP_DIR/bulk-rename-origin"
+    newf="$TMP_DIR/bulk-rename"
+
+    if [ -n "$1" ]; then
+        rm -f "$originf"
+        echo "$1" | while read -r file; do
+            basename "$file"
+        done | nl >> "$originf"
+    else
+        ls -1 | nl > "$originf"
+    fi
+
+    cp "$originf" "$newf"
+    $EDITOR "$newf"
+
+    new_data=$(cat "$newf")
+    while read -r old; do
+        num=$(echo "$old" | awk '{print $1}')
+        old=$(echo "$old" | sed -rn 's/ *[0-9]+\t(.+)/\1/p')
+        new=$(echo "$new_data" | sed -rn "s/ *$num\t(.+)/\1/p")
+        if [ "$new" != "$old" ]; then
+            mv "$old" "$new"
+        fi
+    done < "$originf"
+
+    rm -f "$originf" "$newf"
 }
 
 mkfolder() {
@@ -763,7 +787,7 @@ list() {
 
 header() {
     exists git && {
-        git=$(git branch 2>/dev/null)
+        git=$(git branch 2>/dev/null | tr '\n' ' ' | xargs)
         [ "$git" ] && git=" ($git)"
     }
     dev=$(findmnt -T . -no "source,avail,size,label" |
