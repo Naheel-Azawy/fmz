@@ -713,7 +713,7 @@ goto() {
             tput rmcup
             echo "$mnt_out"
             echo 'Press enter to continue...'
-            read -r
+            read -r _
         }
         rm -f "$tmp"
     done
