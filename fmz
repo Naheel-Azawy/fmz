@@ -713,7 +713,7 @@ goto() {
             tput rmcup
             echo "$mnt_out"
             echo 'Press enter to continue...'
-            read -r _
+            read -r foo
         }
         rm -f "$tmp"
     done
@@ -896,6 +896,8 @@ doit() {
 
     mkdir -p "$TMP_DIR"
 
+    stty_origin=$(stty -g)
+
     archive_mnt=
     res=.
     while :; do
@@ -963,6 +965,7 @@ doit() {
             break
         fi
         update_term_size
+        stty "$stty_origin" # not really usefull
     done
 
     tput rmcup
