@@ -685,8 +685,7 @@ mkarchive() {
 }
 
 goto() {
-    tmp=$(mktemp)
-    b="ctrl-u:abort+execute('$SELF' --eval devs_unmount {} > '$tmp'; echo AGAIN)"
+    b="ctrl-u:abort+execute(echo 'UNMOUNT' {})"
     pv='echo Press ctrl-u to unmount devices if any'
 
     res=AGAIN
@@ -701,22 +700,29 @@ goto() {
                      --preview-window='bottom:1%' \
                      --prompt='Go to> ')
 
+        tput rmcup
         case "$res" in
             "$MOUNTED"*)
                 res=$(devs_mountpoint "$res") ;;
             "$UNMOUNTED"*)
-                devs_mount "$res" > "$tmp" &&
+                echo 'Mounting...'
+                devs_mount "$res" &&
                     res=$(devs_mountpoint "$res") ;;
+            'UNMOUNT'*)
+                echo 'Unmounting...'
+                mnt_here=$(findmnt -T . -no source)
+                mnt_there=$(echo "$res" | awk '{print $3}')
+                if [ "$mnt_here" = "$mnt_there" ]; then
+                    cd ||:
+                fi
+                line=$(echo "$res" | cut -d ' ' -f2-)
+                devs_unmount "$line" ;;
         esac
 
-        mnt_out=$(cat "$tmp")
-        [ "$mnt_out" ] && {
-            tput rmcup
-            echo "$mnt_out"
+        [ "$res" ] && {
             echo 'Press enter to continue...'
             read -r foo
         }
-        rm -f "$tmp"
     done
 
     [ -d "$res" ] || res="$PWD"
