@@ -700,6 +700,7 @@ goto() {
                      --preview-window='bottom:1%' \
                      --prompt='Go to> ')
 
+        confirm=
         tput rmcup
         case "$res" in
             "$MOUNTED"*)
@@ -707,7 +708,8 @@ goto() {
             "$UNMOUNTED"*)
                 echo 'Mounting...'
                 devs_mount "$res" &&
-                    res=$(devs_mountpoint "$res") ;;
+                    res=$(devs_mountpoint "$res")
+                confirm=1 ;;
             'UNMOUNT'*)
                 echo 'Unmounting...'
                 mnt_here=$(findmnt -T . -no source)
@@ -716,10 +718,11 @@ goto() {
                     cd ||:
                 fi
                 line=$(echo "$res" | cut -d ' ' -f2-)
-                devs_unmount "$line" ;;
+                devs_unmount "$line"
+                confirm=1 ;;
         esac
 
-        [ "$res" ] && {
+        [ "$confirm" ] && {
             echo 'Press enter to continue...'
             read -r foo
         }
