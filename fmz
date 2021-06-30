@@ -746,7 +746,7 @@ tog_hidden() {
 }
 
 dnd() {
-    echo "$fx" | xargs -d '\n' dragon -a -x
+    echo "$fx" | xargs -d '\n' dragon -a -x &
 }
 
 lssort() {
