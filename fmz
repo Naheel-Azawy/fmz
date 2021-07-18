@@ -985,11 +985,11 @@ update_term_size() {
             fi ;;
 
         selmenu)
-                PV_WIN='ignored'
-                PV_X=$((W / 2 + 2))
-                PV_Y=2
-                PV_W=$((W / 2))
-                PV_H=$((H - 2)) ;;
+            PV_WIN='ignored'
+            PV_X=$((W / 2))
+            PV_Y=1
+            PV_W=$((W / 2))
+            PV_H=$((H - 2)) ;;
     esac
 }
 
