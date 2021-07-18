@@ -18,7 +18,8 @@
 # ==== constants ====
 
 NAME='fmz'
-FZF='fzf'
+MENU='fzf'
+#MENU='selmenu'
 SELF=$(realpath "$0")
 ID=$$
 [ "$XDG_CONFIG_HOME" ] ||
@@ -32,6 +33,7 @@ TMP_DIR="/tmp/$NAME-tmp-$ID"
 TMP_FILE="$TMP_DIR/tmp"
 LAST_FILE="$TMP_DIR/last-"
 EMPTY='/EMPTY/'
+ESC=$(printf '\033')
 
 # for fzf preview
 PV_SHELL=bash
@@ -49,10 +51,11 @@ CD=
 W= ; H=
 PV_W= ; PV_H= ; PV_X= ; PV_Y= ;
 PV_WIN= ; USE_STPV=
+preselector=
 
 # ==== config ====
 
-bindings="ctrl-g:execute(true)"
+bindings=""
 bindings_help=""
 bookmarks="$HOME"
 funs=""
@@ -65,12 +68,17 @@ add_fun() {
 }
 
 run_fun() {
-    if [ -f "$2" ]; then
-        fx=$(while read -r f; do realpath "$f"; done < "$2")
-        f=$(echo "$fx" | head -n1)
-    else
-        fx= ; f=
-    fi
+    case "$MENU" in
+        fzf)
+            fx=$(while read -r f; do realpath "$f"; done < "$2")
+            f=$(echo "$fx" | head -n1) ;;
+        selmenu)
+            preselector=$(preselector_file .)
+            text=$(remove_ansi < "$preselector" | xargs realpath)
+            f=$(echo "$text" | head -n1)
+            fx=$(echo "$text" | tail -n +2)
+            [ -n "$fx" ] || fx="$f" ;;
+    esac
     id=$ID
     FMZ_SHELL=$ID
     export FMZ_SHELL id fx f
@@ -85,20 +93,26 @@ bind() {
         fun|funq)
             fun="$3"
             doc=
-            if [ "$cmd" = fun ]; then
-                cmd="execute(cp {+f} $TMP_FILE)+abort"
-                cmd="$cmd+execute(echo '\$ run_fun $fun $TMP_FILE')"
-            else
-                cmd="abort+execute(echo '\$ run_fun $fun')"
-            fi
-            ;;
+            case "$MENU" in
+                fzf)
+                    cmd="execute(cp {+f} $TMP_FILE)+abort"
+                    cmd="$cmd+execute(echo '\$ run_fun $fun $TMP_FILE')" ;;
+                selmenu)
+                    cmd="accept '\$ run_fun $fun'" ;;
+            esac ;;
         *)
             fun='nop'
-            doc="$3"
-            ;;
+            doc="$3" ;;
     esac
 
-    bindings="$bindings,$key:$cmd"
+    case "$MENU" in
+        fzf)
+            [ -n "$bindings" ] && bindings="$bindings,"
+            bindings="$bindings$key:$cmd" ;;
+        selmenu)
+            bindings="${bindings}bind $key \"$cmd\"
+" ;;
+    esac
     bindings_help="$bindings_help$key $fun $doc
 "
 }
@@ -134,6 +148,19 @@ show_help() {
 
 exists() {
     command -v "$1" >/dev/null
+}
+
+remove_ansi() {
+    sed 's/\x1b\[[0-9;]*m//g'
+}
+
+remove_ansi_reset() {
+    start_bytes=$(echo "$1" | head -n1 | head -c 4)
+    if [ "$start_bytes" = "${ESC}[0m" ]; then
+        echo "$1" | head -n1 | tail -c +5
+    else
+        echo "$1"
+    fi
 }
 
 # ==== archive utils ====
@@ -422,32 +449,51 @@ devs_mountpoint() {
     esac
 }
 
-# ==== fzf interface ====
+# ==== menu interface ====
 
-fzf_base() {
-    SHELL="$PV_SHELL" "$FZF"        \
-         --ansi                     \
-         --layout=reverse           \
-         --no-clear                 \
-         --pointer=' '              \
-         --marker='❱'               \
-         --bind change:first        \
-         --color='marker:#ffffff'   \
-         --color='fg+:reverse'      \
-         --color='bg+:-1'           \
-         --color='hl:reverse'       \
-         --color='hl+:reverse'      \
-         --color='gutter:-1'        \
-         --info=default             \
-         "$@"
+menu_base() {
+    case "$MENU" in
+        fzf)
+            SHELL="$PV_SHELL" fzf         \
+                 --ansi                   \
+                 --layout=reverse         \
+                 --no-clear               \
+                 --pointer=' '            \
+                 --marker='❱'             \
+                 --bind change:first      \
+                 --color='marker:#ffffff' \
+                 --color='fg+:reverse'    \
+                 --color='bg+:-1'         \
+                 --color='hl:reverse'     \
+                 --color='hl+:reverse'    \
+                 --color='gutter:-1'      \
+                 --info=default           \
+                 "$@" ;;
+
+        selmenu)
+            selmenu --no-reset "$@" ;;
+    esac
+}
+
+reset_terminal() {
+    case "$MENU" in
+        fzf)     tput rmcup ;;
+        selmenu) selmenu --reset ;;
+    esac
 }
 
 # dmenu replacement
 menu_interface() {
-    fzf_base \
-        --print-query \
-        --info=hidden \
-        "$@" | tail -n1
+    case "$MENU" in
+        fzf)
+            menu_base         \
+                --print-query \
+                --info=hidden \
+                "$@" | tail -n1 ;;
+
+        selmenu)
+            menu_base "$@" ;;
+    esac
 }
 
 menu() {
@@ -455,11 +501,81 @@ menu() {
               grep .           |
               grep -v '^menu ' |
               cut -d ' ' -f2-  |
-              menu_interface \
-                  --prompt "Menu> " \
-                  --header "$f")
+              menu_interface    \
+                  --prompt "> " \
+                  --header "Menu: $f")
     fun=$(echo "$funs" | grep " $res\$" | cut -d ' ' -f1)
     eval "$fun"
+}
+
+menu_search() {
+    case "$MENU" in
+        fzf)
+            menu_base                      \
+                --preview-window="$PV_WIN" \
+                --preview="$(pv_cmd)"      \
+                --layout=reverse           \
+                --info=inline ;;
+
+        selmenu)
+            menu_base --preview-cmd "$(pv_cmd)" ;;
+    esac
+}
+
+menu_goto() {
+    pv='echo Press ctrl-u to unmount devices if any'
+    case "$MENU" in
+        fzf)
+            b="ctrl-u:abort+execute(echo 'UNMOUNT' {})"
+            menu_interface                   \
+                --bind="$b"                  \
+                --preview="$pv"              \
+                --preview-window='bottom:1%' \
+                --prompt='Go to> ' ;;
+
+        selmenu)
+            b="bind ctrl-u 'accept_prefix UNMOUNT'"
+            menu_interface         \
+                --eval "$b"        \
+                --status-cmd "$pv" \
+                --prompt 'Go to> ';;
+    esac
+}
+
+menu_main_list_real() {
+    case "$MENU" in
+        fzf)
+            menu_base                      \
+                --multi                    \
+                --preview-window "$PV_WIN" \
+                --preview "$(pv_cmd)"      \
+                --layout reverse           \
+                --bind "$bindings"         \
+                --header "$(header)"       \
+                --query "$query"           \
+                --info inline              \
+                "$@" | tail -n1 ;;
+
+        selmenu)
+            # shellcheck disable=SC2016
+            status='[ -e "$selected_text" ] && ls --color=always -lhd "$selected_text"'
+            menu_base                     \
+                --multi                   \
+                --preview-cmd "$(pv_cmd)" \
+                --status-cmd "$status"    \
+                --header "$(header)"      \
+                --eval "$bindings"        \
+                --query "$query"          \
+                "$@" ;;
+    esac
+}
+
+menu_main_list() {
+    if [ "$USE_PRESELECTOR" ]; then
+        menu_main_list_real --preselector "$preselector"
+    else
+        menu_main_list_real
+    fi
 }
 
 # ==== operations ====
@@ -469,11 +585,7 @@ search() {
               fd --color=always -H -t f
           else
               find . -type f
-          fi | fzf_base                       \
-                   --preview-window="$PV_WIN" \
-                   --preview="$(pv_cmd)"      \
-                   --layout=reverse           \
-                   --info=inline)
+          fi | menu_search)
     d=$(dirname "$res")
     query=$(basename "$res")
     cd -- "$d" || return 1
@@ -535,7 +647,7 @@ paste() {
     if exists cp-p; then
         srcf=$(mktemp)
         echo "$list" > "$srcf"
-        tput rmcup
+        reset_terminal
         case "$mode" in
             copy)
                 cp-p --backup=numbered -a -F "$srcf" . ;;
@@ -685,23 +797,16 @@ mkarchive() {
 }
 
 goto() {
-    b="ctrl-u:abort+execute(echo 'UNMOUNT' {})"
-    pv='echo Press ctrl-u to unmount devices if any'
-
     res=AGAIN
     while [ "$res" = AGAIN ]; do
         res=$({
                  realpath .
                  echo "$bookmarks" | tr ':' '\n'
                  devs_ls
-             } | menu_interface \
-                     --bind="$b" \
-                     --preview="$pv" \
-                     --preview-window='bottom:1%' \
-                     --prompt='Go to> ')
+             } | menu_goto)
 
         confirm=
-        tput rmcup
+        reset_terminal
         case "$res" in
             "$MOUNTED"*)
                 res=$(devs_mountpoint "$res") ;;
@@ -733,7 +838,7 @@ goto() {
 }
 
 shell() {
-    tput rmcup
+    reset_terminal
     $SHELL
 }
 
@@ -784,9 +889,10 @@ list() {
         [ "$sort" ] &&
             cmd="$cmd --sort=$sort"
     fi
-    if [ "$1" ]; then
+    while [ $# -gt 0 ]; do
         cmd="$cmd '$1'"
-    fi
+        shift
+    done
     res=$(eval "$cmd")
     if [ "$res" ]; then
         echo "$res"
@@ -838,47 +944,53 @@ preview() {
 }
 
 pv_cmd() {
-    cmd="[ -e {} ]"
-    cmd="$cmd && printf '(%d) ' \$(({n} + 1))"
-    cmd="$cmd && ls -lhd {}"
-    if [ "$PV_WIN" != 'down:1%' ]; then
-        cmd="$cmd && '$SELF' --eval preview"
-        cmd="$cmd '$USE_STPV' {} $PV_W $PV_H $PV_X $PV_Y $ID"
-    fi
-    echo "$cmd"
-}
+    case "$MENU" in
+        fzf)
+            cmd="[ -e {} ]"
+            cmd="$cmd && printf '(%d) ' \$(({n} + 1))"
+            cmd="$cmd && ls -lhd {}"
+            if [ "$PV_WIN" != 'down:1%' ]; then
+                cmd="$cmd && '$SELF' --eval preview"
+                cmd="$cmd '$USE_STPV' {} $PV_W $PV_H $PV_X $PV_Y $ID"
+            fi ;;
 
-fuzzy() {
-    fzf_base                       \
-        --multi                    \
-        --preview-window="$PV_WIN" \
-        --preview="$(pv_cmd)"      \
-        --layout=reverse           \
-        --bind "$bindings"         \
-        --header="$(header)"       \
-        --info=inline              \
-        "$@"
+        selmenu)
+            cmd="'$SELF' --eval preview"
+            cmd="$cmd '$USE_STPV' \"\$selected_text\" $PV_W $PV_H $PV_X $PV_Y $ID" ;;
+    esac
+    echo "$cmd"
 }
 
 update_term_size() {
     W=$(tput cols)
     H=$(tput lines)
-    if [ "$W" -le 55 ] && [ "$H" -le 15 ]; then
-        PV_WIN='down:1%'
-        PV_X= ; PV_Y= ; PV_W= ; PV_H=
-    elif [ "$W" -gt $((H * 2 + 10)) ]; then
-        PV_WIN='right:50%'
-        PV_X=$((W / 2 + 2))
-        PV_Y=2
-        PV_W=$((((W - 1) / 2) - 2))
-        PV_H=$((H - 3))
-    else
-        PV_WIN='down:50%'
-        PV_X=1
-        PV_Y=$((H / 2 + 3))
-        PV_W=$((W - 2))
-        PV_H=$((((H - 1) / 2) - 2))
-    fi
+
+    case "$MENU" in
+        fzf)
+            if [ "$W" -le 55 ] && [ "$H" -le 15 ]; then
+                PV_WIN='down:1%'
+                PV_X= ; PV_Y= ; PV_W= ; PV_H=
+            elif [ "$W" -gt $((H * 2 + 10)) ]; then
+                PV_WIN='right:50%'
+                PV_X=$((W / 2 + 2))
+                PV_Y=2
+                PV_W=$((((W - 1) / 2) - 2))
+                PV_H=$((H - 3))
+            else
+                PV_WIN='down:50%'
+                PV_X=1
+                PV_Y=$((H / 2 + 3))
+                PV_W=$((W - 2))
+                PV_H=$((((H - 1) / 2) - 2))
+            fi ;;
+
+        selmenu)
+                PV_WIN='ignored'
+                PV_X=$((W / 2 + 2))
+                PV_Y=2
+                PV_W=$((W / 2))
+                PV_H=$((H - 2)) ;;
+    esac
 }
 
 preselector_file() {
@@ -887,29 +999,6 @@ preselector_file() {
 }
 
 doit() {
-    [ ! -t 0 ] &&
-        exec "$TERMINAL" -e "$SELF" "$@"
-
-    [ "$FMZ_SHELL" ] && {
-        echo "Already in a shell inside of $NAME."
-        echo "To force nested instances, clear FMZ_SHELL."
-        return 1
-    }
-
-    exists stpv && USE_STPV=1
-    update_term_size
-    [ "$USE_STPV" ] &&
-        stpvimg --listen $ID 2>/dev/null &
-
-    USE_PRESELECTOR=
-    "$FZF" --help | grep -q preselector && USE_PRESELECTOR=1
-
-    mkdir -p "$TMP_DIR"
-
-    stty_origin=$(stty -g)
-
-    archive_mnt=
-    res=.
     while :; do
         preselector=$(preselector_file .)
 
@@ -919,13 +1008,7 @@ doit() {
             tmux rename-window "$title"
         }
 
-        res=$(list | {
-                  if [ "$USE_PRESELECTOR" ]; then
-                      fuzzy -q "$query" --preselector "$preselector"
-                  else
-                      fuzzy -q "$query"
-                  fi
-              } | tail -n1)
+        res=$(list | menu_main_list)
         [ "$USE_STPV" ] &&
             stpvimg --clear $ID
 
@@ -949,9 +1032,20 @@ doit() {
                         less -c "$res"
                     fi 2>/dev/null
                 fi
+
             elif [ -d "$res" ]; then
                 if [ "$res" = '..' ]; then
-                    basename "$PWD" > "$(preselector_file ..)"
+                    case "$MENU" in
+                        fzf)
+                            basename "$PWD" > "$(preselector_file ..)" ;;
+
+                        selmenu)
+                            parent_child_dir=$(basename "$PWD")
+                            # making sure that ansi colors are well matched
+                            text=$(list -d "../$parent_child_dir" |
+                                       sed 's@../@@')
+                            remove_ansi_reset "$text" > "$(preselector_file ..)" ;;
+                    esac
                 fi
 
                 cd -- "$res" ||:
@@ -966,7 +1060,7 @@ doit() {
             fi
 
         elif echo "$res" | grep -q '^\$'; then
-            # because fzf messes with stdin and out
+            # because the menu messes with stdin and out
             # so, we can exit with a command to be executed
             cmd=$(echo "$res" | sed 's/^\$ *//')
             eval "$cmd"
@@ -981,7 +1075,7 @@ doit() {
         stty "$stty_origin" # not really usefull
     done
 
-    tput rmcup
+    reset_terminal
 
     [ "$USE_STPV" ] &&
         stpvimg --end $ID
@@ -1001,6 +1095,30 @@ doit() {
 
 conf_init() {
     # default config
+
+    case "$MENU" in
+        fzf)
+            cmd_accept='accept-non-empty'
+            cmd_parent='abort+execute(echo ..)'
+            cmd_sel_up='toggle+up'
+            cmd_sel_down='toggle+down'
+            cmd_sel_all='select-all'
+            cmd_sel_clear='clear-selection'
+            cmd_pv_up='preview-up'
+            cmd_pv_down='preview-down'
+            cmd_refresh='abort+execute(echo .)' ;;
+
+        selmenu)
+            cmd_accept='accept'
+            cmd_parent='accept ..'
+            cmd_sel_up='toggle; up'
+            cmd_sel_down='toggle; down'
+            cmd_sel_all='select_all'
+            cmd_sel_clear='clear_selection'
+            cmd_pv_up='preview_up'
+            cmd_pv_down='preview_down'
+            cmd_refresh='accept .' ;;
+    esac
 
     exists mimeopen && {
         add_fun open_with     'Open with'
@@ -1027,18 +1145,18 @@ conf_init() {
     add_fun show_help       'Show help screen'
     add_fun menu            'Open menu'
 
-    bind enter      "accept-non-empty"       'Open selected item'
-    bind right      "accept-non-empty"       'Open selected item'
-    bind left       "abort+execute(echo ..)" 'Go to parent directory'
-    bind home       "first"                  'Jump to first element'
-    bind end        "last"                   'Jump to last element'
-    bind shift-up   "toggle+up"              'Mark and move selection up'
-    bind shift-down "toggle+down"            'Mark and move selection down'
-    bind ctrl-a     "select-all"             'Select all'
-    bind ctrl-g     "clear-selection"        'Clear selection'
-    bind alt-up     "preview-up"             'Scroll preview up'
-    bind alt-down   "preview-down"           'Scroll preview down'
-    bind f5         "abort+execute(echo .)"  'Refresh'
+    bind enter      "$cmd_accept"      'Open selected item'
+    bind right      "$cmd_accept"      'Open selected item'
+    bind left       "$cmd_parent"      'Go to parent directory'
+    bind home       "first"            'Jump to first element'
+    bind end        "last"             'Jump to last element'
+    bind shift-up   "$cmd_sel_up"      'Mark and move selection up'
+    bind shift-down "$cmd_sel_down"    'Mark and move selection down'
+    bind ctrl-a     "$cmd_sel_all"     'Select all'
+    bind ctrl-g     "$cmd_sel_clear"   'Clear selection'
+    bind alt-up     "$cmd_pv_up"       'Scroll preview up'
+    bind alt-down   "$cmd_pv_down"     'Scroll preview down'
+    bind f5         "$cmd_refresh"     'Refresh'
     bind alt-x      fun  menu
     bind ctrl-n     funq new
     bind ctrl-c     fun  copy
@@ -1052,7 +1170,6 @@ conf_init() {
     bind ctrl-s     fun  shell
     bind ctrl-q     "abort" 'Quit'
     bind esc        "abort" 'Quit'
-    bind ctrl-k     "execute(kill $ID)" 'Kill program'
     bind f1         funq show_help
 
     exists dragon && {
@@ -1075,6 +1192,15 @@ conf_init() {
 
 main() {
     exists dash && PV_SHELL=dash
+    USE_PRESELECTOR=
+    case "$MENU" in
+        fzf)
+            fzf --help | grep -q preselector &&
+                USE_PRESELECTOR=1 ;;
+        selmenu)
+            USE_PRESELECTOR=1 ;;
+    esac
+
     mkdir -p "$MOUNTS_DIR"
     conf_init
 
@@ -1095,6 +1221,25 @@ main() {
                 query=$(basename "$1")
                 cd -- "$d" || return 1
             fi
+            [ ! -t 0 ] &&
+                exec "$TERMINAL" -e "$SELF" "$@"
+
+            [ "$FMZ_SHELL" ] && {
+                echo "Already in a shell inside of $NAME."
+                echo "To force nested instances, clear FMZ_SHELL."
+                return 1
+            }
+
+            exists stpv && USE_STPV=1
+            update_term_size
+            [ -n "$USE_STPV" ] && {
+                stpvimg --listen $ID 2>/dev/null &
+            }
+
+            mkdir -p "$TMP_DIR"
+            stty_origin=$(stty -g)
+            archive_mnt=
+            res=.
             doit "$@"
     esac
 }
