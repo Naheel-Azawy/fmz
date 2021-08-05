@@ -167,7 +167,7 @@ remove_ansi_reset() {
 
 isarchive() {
     case "$1" in
-        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2|*.tar.gz|*.tgz|*.tar.xz|*.txz|*.zip|*.apk|*.jar|*.rar|*.iso|*.7z)
+        *.tar|*.tar.bz|*.tar.bz2|*.tbz|*.tbz2|*.tar.gz|*.tgz|*.tar.xz|*.txz|*.zip|*.apk|*.jar|*.rar|*.iso|*.7z)
             return 0;;
         *)  return 1;;
     esac
@@ -285,9 +285,10 @@ archive_extract() {
         *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) $s tar xjvf "$f" ;;
         *.tar.gz|*.tgz)                  $s tar xzvf "$f" ;;
         *.tar.xz|*.txz)                  $s tar xJvf "$f" ;;
-        *.zip)                           $s unzip "$f"    ;;
-        *.rar)                           $s unrar x "$f"  ;;
-        *.7z)                            $s 7z x "$f"     ;;
+        *.tar)                           $s tar xf   "$f" ;;
+        *.zip)                           $s unzip    "$f" ;;
+        *.rar)                           $s unrar x  "$f" ;;
+        *.7z)                            $s 7z x     "$f" ;;
         *)
             echo "Error: unknown file format"
             return 1;;
