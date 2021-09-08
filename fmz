@@ -146,6 +146,23 @@ show_help() {
 
 # ==== utils ====
 
+info() {
+    printf '\033[1;34mINFO:\033[0m '
+    echo "$@"
+}
+
+err() {
+    {
+        printf '\033[1m\033[31mERROR:\033[0m '
+        echo "$@"
+    } >&2
+}
+
+run() {
+    printf '\033[1;32m>>>\033[0m %s\n' "$*" >&2
+    "$@"
+}
+
 exists() {
     command -v "$1" >/dev/null
 }
@@ -161,6 +178,11 @@ remove_ansi_reset() {
     else
         echo "$1"
     fi
+}
+
+relativify() {
+    here=$(realpath .)
+    sed "s:^$here:.:"
 }
 
 # ==== archive utils ====
@@ -299,21 +321,21 @@ mktar() {
     s='' && [ ! -w . ] && s='sudo'
     n="$1"
     shift
-    $s tar czf "$n".tar.gz "$@"
+    run $s tar czf "$n".tar.gz "$@"
 }
 
 mkzip() {
     s='' && [ ! -w . ] && s='sudo'
     n="$1"
     shift
-    $s zip -j -r "$n".zip "$@"
+    run $s zip -r "$n".zip "$@"
 }
 
 mk7z() {
     s='' && [ ! -w . ] && s='sudo'
     n="$1"
     shift
-    $s 7z a "$n".7z "$@"
+    run $s 7z a "$n".7z "$@"
 }
 
 # ==== devices utils ====
@@ -784,17 +806,21 @@ new() {
 }
 
 mkarchive() {
+    types='zip tar 7z'
     type=$({
-              exists zip && echo ZIP
-              exists tar && echo TAR
-              exists 7z  && echo 7Z
+              for t in $types; do
+                  exists "$t" && echo "$t"
+              done
           } | menu_interface --prompt "Archive type> ")
-    name=$(echo | menu_interface --prompt 'Archive name> ')
-    printf '%s' "$fx" | case "$type" in
-        ZIP) xargs -d '\n' "$SELF" --eval mkzip "$name" ;;
-        TAR) xargs -d '\n' "$SELF" --eval mktar "$name" ;;
-        7Z)  xargs -d '\n' "$SELF" --eval mk7z  "$name" ;;
-    esac
+    name=$(basename "$(realpath "$f")" | cut -d . -f1)
+    name=$(echo | menu_interface --prompt 'Archive name> ' --query "$name")
+    tput rmcup
+    [ -z "$name" ] && {
+        info "No name provided for the $type, skipping"
+        return 1
+    }
+    printf '%s' "$fx" | relativify |
+        xargs -d '\n' "$SELF" --eval "mk$type" "$name"
 }
 
 goto() {
