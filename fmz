@@ -719,10 +719,12 @@ delete() {
     echo "$fx" | while read -r file; do
         case "$ans" in
             Trash)
+                preselector_up
                 # move current file or selected files to trash folder
                 # using trash-cli (https://github.com/andreafrancia/trash-cli)
                 gio trash "$file" || trash-put "$file" ;;
             Delete*)
+                preselector_up
                 file=$(basename "$file")
                 rm -r "$file" ;;
         esac
@@ -1023,6 +1025,15 @@ update_term_size() {
 preselector_file() {
     sum=$(realpath "$1" | cksum | cut -d ' ' -f1)
     echo "${LAST_FILE}${sum}"
+}
+
+preselector_up() {
+    # clears marked items and moves the selection up
+    preselector=$(preselector_file .)
+    old=$(head -n1 "$preselector")
+    list | remove_ansi |
+        grep -B 1 "^$old\$" |
+        head -n1 > "$preselector"
 }
 
 doit() {
