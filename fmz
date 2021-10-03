@@ -744,6 +744,7 @@ rename() {
                 echo "$name already exists"
             elif [ "$name" ] && [ "$name" != "$f" ]; then
                 mv "$f" "$name"
+                preselector_set_selected "$name"
             fi
         }
     else
@@ -796,6 +797,7 @@ mkfile() {
        echo "$name already exists"
     elif [ "$name" ]; then
         touch "$name"
+        preselector_set_selected "$name"
     fi
 }
 
@@ -1025,6 +1027,11 @@ update_term_size() {
 preselector_file() {
     sum=$(realpath "$1" | cksum | cut -d ' ' -f1)
     echo "${LAST_FILE}${sum}"
+}
+
+preselector_set_selected() {
+    preselector=$(preselector_file .)
+    echo "$1" > "$preselector"
 }
 
 preselector_up() {
