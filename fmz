@@ -55,6 +55,7 @@ preselector=
 
 # ==== config ====
 
+quick_goto=
 bindings=""
 bindings_help=""
 bookmarks="$HOME"
@@ -545,6 +546,7 @@ menu_search() {
     esac
 }
 
+# TODO: add option to embed goto in the main list
 menu_goto() {
     pv='echo Press ctrl-u to unmount devices if any'
     case "$MENU" in
@@ -827,45 +829,53 @@ mkarchive() {
         xargs -d '\n' "$SELF" --eval "mk$type" "$name"
 }
 
+goto_items() {
+    echo "$bookmarks" | tr ':' '\n'
+    devs_ls
+}
+
+goto_run() {
+    res="$1"
+    confirm=
+    reset_terminal
+    case "$res" in
+        "$MOUNTED"*)
+            res=$(devs_mountpoint "$res") ;;
+        "$UNMOUNTED"*)
+            echo 'Mounting...'
+            devs_mount "$res" &&
+                res=$(devs_mountpoint "$res")
+            confirm=1 ;;
+        'UNMOUNT'*)
+            echo 'Unmounting...'
+            mnt_here=$(findmnt -T . -no source)
+            mnt_there=$(echo "$res" | awk '{print $3}')
+            if [ "$mnt_here" = "$mnt_there" ]; then
+                cd ||:
+            fi
+            line=$(echo "$res" | cut -d ' ' -f2-)
+            devs_unmount "$line"
+            confirm=1 ;;
+    esac
+
+    [ "$confirm" ] && {
+        echo 'Press enter to continue...'
+        read -r foo
+    }
+
+    [ -d "$res" ] || res="$PWD"
+    cd -- "$res" ||:
+}
+
 goto() {
     res=AGAIN
     while [ "$res" = AGAIN ]; do
         res=$({
                  realpath .
-                 echo "$bookmarks" | tr ':' '\n'
-                 devs_ls
+                 goto_items
              } | menu_goto)
-
-        confirm=
-        reset_terminal
-        case "$res" in
-            "$MOUNTED"*)
-                res=$(devs_mountpoint "$res") ;;
-            "$UNMOUNTED"*)
-                echo 'Mounting...'
-                devs_mount "$res" &&
-                    res=$(devs_mountpoint "$res")
-                confirm=1 ;;
-            'UNMOUNT'*)
-                echo 'Unmounting...'
-                mnt_here=$(findmnt -T . -no source)
-                mnt_there=$(echo "$res" | awk '{print $3}')
-                if [ "$mnt_here" = "$mnt_there" ]; then
-                    cd ||:
-                fi
-                line=$(echo "$res" | cut -d ' ' -f2-)
-                devs_unmount "$line"
-                confirm=1 ;;
-        esac
-
-        [ "$confirm" ] && {
-            echo 'Press enter to continue...'
-            read -r foo
-        }
+        goto_run "$res"
     done
-
-    [ -d "$res" ] || res="$PWD"
-    cd -- "$res" ||:
 }
 
 shell() {
@@ -1053,7 +1063,13 @@ doit() {
             tmux rename-window "$title"
         }
 
-        res=$(list | menu_main_list)
+        res=$({
+                 list
+                 [ -z "$quick_goto" ] || {
+                     echo '======'
+                     goto_items
+                 }
+             } | menu_main_list)
         [ "$USE_STPV" ] &&
             stpvimg --clear $ID
 
@@ -1110,12 +1126,13 @@ doit() {
             cmd=$(echo "$res" | sed 's/^\$ *//')
             eval "$cmd"
 
-        elif [ "$res" != "$EMPTY" ] && [ ! -L "$res" ]; then
-            # do nothing if
-            # - trying to open nothing in an empty dir
-            # - or trying to open a dead link
+        elif [ -z "$res" ]; then
             break
+
+        else
+            goto_run "$res"
         fi
+
         update_term_size
         stty "$stty_origin" # not really usefull
     done
