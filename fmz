@@ -944,7 +944,7 @@ list() {
 
 header() {
     exists git && {
-        git=$(git branch 2>/dev/null | tr '\n' ' ' | xargs)
+        git=$(git branch --show-current 2>/dev/null)
         [ "$git" ] && git=" ($git)"
     }
     dev=$(findmnt -T . -no "source,avail,size,label" |
