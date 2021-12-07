@@ -918,23 +918,20 @@ sort_by_size() {
 # ==== main ui ====
 
 list() {
-    cmd=
-    cmd="$cmd command ls -1 -N -v"
-    cmd="$cmd --group-directories-first"
-    cmd="$cmd --color=always"
+    lsopts=
+    lsopts="$lsopts -1 -N -v"
+    lsopts="$lsopts --group-directories-first"
+    lsopts="$lsopts --color=always"
     if [ -f "$HIDDEN_FILE" ]; then
-        cmd="$cmd -A"
+        lsopts="$lsopts -A"
     fi
     if [ -f "$SORT_FILE" ]; then
         sort=$(cat "$SORT_FILE")
         [ "$sort" ] &&
-            cmd="$cmd --sort=$sort"
+            lsopts="$lsopts --sort=$sort"
     fi
-    while [ $# -gt 0 ]; do
-        cmd="$cmd '$1'"
-        shift
-    done
-    res=$(eval "$cmd")
+    # shellcheck disable=SC2086
+    res=$(command ls $lsopts "$@")
     if [ "$res" ]; then
         echo "$res"
     else
