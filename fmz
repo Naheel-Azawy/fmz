@@ -794,6 +794,11 @@ rename() {
 }
 
 rename_all() {
+    # this appears to be broken
+    # will use vidir for now TODO: fix later
+    vidir
+    return
+
     originf="$TMP_DIR/bulk-rename-origin"
     newf="$TMP_DIR/bulk-rename"
 
