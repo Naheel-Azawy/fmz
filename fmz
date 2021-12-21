@@ -71,11 +71,11 @@ add_fun() {
 run_fun() {
     case "$MENU" in
         fzf)
-            fx=$(while read -r f; do realpath "$f"; done < "$2")
+            fx=$(while read -r f; do realpath -s "$f"; done < "$2")
             f=$(echo "$fx" | head -n1) ;;
         selmenu)
             preselector=$(preselector_file .)
-            text=$(remove_ansi < "$preselector" | xargs realpath)
+            text=$(remove_ansi < "$preselector" | xargs realpath -s)
             f=$(echo "$text" | head -n1)
             fx=$(echo "$text" | tail -n +2)
             [ -n "$fx" ] || fx="$f" ;;
