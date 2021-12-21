@@ -10,18 +10,19 @@
 ** Optional dependencies/features
    Having one of those is not a must, they only unlock new superpowers.
 
-   | Dependency         | Superpower                        |
-   |--------------------+-----------------------------------|
-   | [[https://github.com/Naheel-Azawy/stpv][stpv]]               | better previews with images       |
-   | [[https://github.com/Naheel-Azawy/cp-p][cp-p]]               | show progress of cp and mv        |
-   | [[https://github.com/cybernoid/archivemount][archivemount]] ([[https://aur.archlinux.org/packages/archivemount/][AUR]]) | browse archives seamlessly        |
-   | gio or [[https://github.com/andreafrancia/trash-cli][trash-cli]]   | XDG trash                         |
-   | xclip              | copy file names to X clipboard    |
-   | [[https://github.com/mwh/dragon][dragon]]             | drag and drop                     |
-   | [[https://github.com/sharkdp/fd][fd]]                 | better find                       |
-   | perl-file-mimeinfo | XDG open with                     |
-   | udisks2            | mount and unmount devices         |
-   | [[https://github.com/phatina/simple-mtpfs/][simple-mtpfs]] ([[https://aur.archlinux.org/packages/simple-mtpfs/][AUR]]) | mount and unmount MTP devices     |
+   | Dependency         | Superpower                       |
+   |--------------------+----------------------------------|
+   | [[https://github.com/Naheel-Azawy/stpv][stpv]]               | better previews with images      |
+   | [[https://github.com/Naheel-Azawy/cp-p][cp-p]]               | show progress of cp and mv       |
+   | [[https://github.com/cybernoid/archivemount][archivemount]] ([[https://aur.archlinux.org/packages/archivemount/][AUR]]) | browse archives seamlessly       |
+   | gio or [[https://github.com/andreafrancia/trash-cli][trash-cli]]   | XDG trash                        |
+   | xclip              | copy file names to X clipboard   |
+   | [[https://github.com/mwh/dragon][dragon]]             | drag and drop                    |
+   | [[https://github.com/sharkdp/fd][fd]]                 | better find                      |
+   | perl-file-mimeinfo | XDG open with                    |
+   | udisks2            | mount and unmount devices        |
+   | [[https://github.com/phatina/simple-mtpfs/][simple-mtpfs]] ([[https://aur.archlinux.org/packages/simple-mtpfs/][AUR]]) | mount and unmount MTP devices    |
+   | dunst              | actions with mount notifications |
 
 ** Installation
    #+begin_src shell-script
@@ -91,6 +92,15 @@
      TERMINAL=st
    #+end_src
 
+** Mount monitor
+   #+begin_src shell-script
+     fmz --mount-monitor
+   #+end_src
+
+   If ~dunstify~ exists, the notification action will mount the drive and open fmz in a terminal window.
+   ~notify-send~ can be used instead but clicking won't do anything.
+   The default bind for unmounting the current directory is ctrl-u.
+
 ** Why?
    I tried many other file managers like [[https://en.wikipedia.org/wiki/Midnight_Commander][mc]], [[https://github.com/ranger/ranger][ranger]], [[https://github.com/gokcehan/lf][lf]], [[https://github.com/jarun/nnn][nnn]], [[https://github.com/dylanaraps/fff][fff]], and several others that I forgot.
    From the GUI world, it worth mentioning nautilus, nemo, thunar, and pantheon's files.
@@ -108,6 +118,6 @@
 
 ** Annoying selection
    If the pointer and selection get reset after every operation, this is due to fzf not supporting this feature (as of now). There's a discussion in a [[https://github.com/junegunn/fzf/pull/2440][pull request]] regarding this. Feel free to join and/or try my branch.
-   
+
 ** License
    GPL3

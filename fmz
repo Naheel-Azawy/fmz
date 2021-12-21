@@ -350,7 +350,7 @@ is_mounted() {
 
 blocks_ls() {
     blocks=$(lsblk -rpo 'name,type,mountpoint' | tac |
-          sed 's/\\x20/ /g')
+                 sed 's/\\x20/ /g')
     echo "$blocks" | while read -r name type mp; do
         case "$type" in
             part|lvm)
@@ -471,6 +471,45 @@ devs_mountpoint() {
         MTP*)   mtp_mountpoint    "$@" ;;
         *)      return 1 ;;
     esac
+}
+
+# others
+
+unmount_cwd_if_mounted() {
+    cwd="$PWD"
+    dev=$(findmnt -T . -no source)
+    cd ||:
+    tput rmcup
+    udisksctl unmount --no-user-interaction -b "$dev" 2>&1 ||
+        cd "$cwd" ||:
+}
+
+mount_monitor() {
+    # TODO: add mtp and others
+    reg='s@UDEV .+ add\s+(/devices/.+)(/block)(.+)/(.+) \(block\)@\4@p'
+    udevadm monitor | sed -rnu "$reg" | while read -r dev; do
+        part=$(lsblk -no type "/dev/$dev")
+        if [ "$part" = 'part' ]; then
+            size=$(lsblk -no size "/dev/$dev" | xargs)
+            label=$(lsblk -no label "/dev/$dev" | xargs)
+            [ -n "$label" ] && label="- $label "
+            msg="Connected $dev $label($size)"
+            echo "$msg"
+
+            {
+                if exists dunstify; then
+                    res=$(dunstify -A 'mount,MOUNT' "$msg")
+                    if [ "$res" = mount ]; then
+                        mp=$(udisksctl mount -b "/dev/$dev" |
+                                 sed -rn 's/Mounted .+ at (.+)/\1/p')
+                        "$SELF" "$mp" >/dev/null 2>/dev/null
+                    fi
+                elif exists notify-send; then
+                    notify-send "$msg"
+                fi
+            } &
+        fi
+    done
 }
 
 # ==== menu interface ====
@@ -786,7 +825,7 @@ rename_all() {
 mkfolder() {
     name=$(echo | menu_interface --prompt 'New folder name> ')
     if [ -e "$name" ]; then
-       echo "$name already exists"
+        echo "$name already exists"
     elif [ "$name" ]; then
         mkdir -p "$name"
         cd -- "$name" || return 1
@@ -796,7 +835,7 @@ mkfolder() {
 mkfile() {
     name=$(echo | menu_interface --prompt 'New file name> ')
     if [ -e "$name" ]; then
-       echo "$name already exists"
+        echo "$name already exists"
     elif [ "$name" ]; then
         touch "$name"
         preselector_set_selected "$name"
@@ -1227,6 +1266,7 @@ conf_init() {
     bind ctrl-l     funq goto
     bind ctrl-h     funq tog_hidden
     bind ctrl-s     fun  shell
+    bind ctrl-u     funq unmount_cwd_if_mounted
     bind ctrl-q     "abort" 'Quit'
     bind esc        "abort" 'Quit'
     bind f1         funq show_help
@@ -1270,18 +1310,24 @@ main() {
     esac
 
     case "$1" in
-        --eval) shift; "$@" ;;
+        --eval)          shift; "$@"   ;;
+        --mount-monitor) mount_monitor ;;
         *)
             query=
             if [ -d "$1" ]; then
-                cd -- "$1" || return 1
+                d="$1"
+                cd -- "$d" || return 1
             elif [ -f "$1" ]; then
                 d=$(dirname "$1")
                 query=$(basename "$1")
                 cd -- "$d" || return 1
             fi
-            [ ! -t 0 ] &&
-                exec "$TERMINAL" -e "$SELF" "$@"
+            [ ! -t 1 ] && {
+                if [ -d "$d" ]; then
+                    cd ||:
+                fi
+                exec "$TERMINAL" -e env TERM=screen-256color "$SELF" "$@"
+            }
 
             [ "$FMZ_SHELL" ] && {
                 echo "Already in a shell inside of $NAME."
@@ -1292,7 +1338,7 @@ main() {
             exists stpv && USE_STPV=1
             update_term_size
             [ -n "$USE_STPV" ] && {
-                stpvimg --listen $ID 2>/dev/null &
+                (cd && stpvimg --listen $ID 2>/dev/null) &
             }
 
             mkdir -p "$TMP_DIR"
