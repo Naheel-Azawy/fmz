@@ -311,7 +311,7 @@ archive_extract() {
         *.tar)                           $s tar xf   "$f" ;;
         *.zip)                           $s unzip    "$f" ;;
         *.rar)                           $s unrar x  "$f" ;;
-        *.7z)                            $s 7z x     "$f" ;;
+        *.7z|iso)                        $s 7z x     "$f" ;;
         *)
             echo "Error: unknown file format"
             return 1;;
