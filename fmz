@@ -71,11 +71,11 @@ add_fun() {
 run_fun() {
     case "$MENU" in
         fzf)
-            fx=$(while read -r f; do realpath -s "$f"; done < "$2")
+            fx=$(while read -r f; do realpath -s -- "$f"; done < "$2")
             f=$(echo "$fx" | head -n1) ;;
         selmenu)
             preselector=$(preselector_file .)
-            text=$(remove_ansi < "$preselector" | xargs realpath -s)
+            text=$(remove_ansi < "$preselector" | xargs realpath -s --)
             f=$(echo "$text" | head -n1)
             fx=$(echo "$text" | tail -n +2)
             [ -n "$fx" ] || fx="$f" ;;
@@ -722,8 +722,8 @@ paste() {
     else
         echo "$list" | while read -r file; do
             case "$mode" in
-                copy) cp -ra "$file" .;;
-                move) mv     "$file" .;;
+                copy) cp -ra -- "$file" .;;
+                move) mv     -- "$file" .;;
             esac
         done
     fi
@@ -776,7 +776,7 @@ rename() {
     count=$(echo "$fx" | wc -l)
 
     if [ "$count" = 1 ]; then
-        f=$(basename "$f")
+        f=$(basename -- "$f")
         name=$(echo | menu_interface \
                           --query "$f" \
                           --prompt "Rename> ")
@@ -784,7 +784,7 @@ rename() {
             if [ -e "$name" ]; then
                 echo "$name already exists"
             elif [ "$name" ] && [ "$name" != "$f" ]; then
-                mv "$f" "$name"
+                mv -- "$f" "$name"
                 preselector_set_selected "$name"
             fi
         }
@@ -805,7 +805,7 @@ rename_all() {
     if [ -n "$1" ]; then
         rm -f "$originf"
         echo "$1" | while read -r file; do
-            basename "$file"
+            basename -- "$file"
         done | nl >> "$originf"
     else
         ls -1 | nl > "$originf"
@@ -862,7 +862,7 @@ mkarchive() {
                   exists "$t" && echo "$t"
               done
           } | menu_interface --prompt "Archive type> ")
-    name=$(basename "$(realpath "$f")" | cut -d . -f1)
+    name=$(basename "$(realpath -- "$f")" | cut -d . -f1)
     name=$(echo | menu_interface --prompt 'Archive name> ' --query "$name")
     tput rmcup
     [ -z "$name" ] && {
@@ -1020,8 +1020,8 @@ preview() {
     elif [ "$use_stpv" = 1 ]; then
         stpv "$@"
     else
-        cat "$f" 2>/dev/null ||
-            file "$f"
+        cat -- "$f" 2>/dev/null ||
+            file -- "$f"
     fi
 }
 
@@ -1030,7 +1030,7 @@ pv_cmd() {
         fzf)
             cmd="[ -e {} ]"
             cmd="$cmd && printf '(%d) ' \$(({n} + 1))"
-            cmd="$cmd && ls -lhd {}"
+            cmd="$cmd && ls -lhd -- {}"
             if [ "$PV_WIN" != 'down:1%' ]; then
                 cmd="$cmd && '$SELF' --eval preview"
                 cmd="$cmd '$USE_STPV' {} $PV_W $PV_H $PV_X $PV_Y $ID"
@@ -1076,7 +1076,7 @@ update_term_size() {
 }
 
 preselector_file() {
-    sum=$(realpath "$1" | cksum | cut -d ' ' -f1)
+    sum=$(realpath -- "$1" | cksum | cut -d ' ' -f1)
     echo "${LAST_FILE}${sum}"
 }
 
