@@ -767,7 +767,7 @@ delete() {
             Delete*)
                 preselector_up
                 file=$(basename "$file")
-                rm -r "$file" ;;
+                rm -r -- "$file" ;;
         esac
     done
 }
