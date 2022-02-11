@@ -360,7 +360,8 @@ blocks_ls() {
                     echo "$MOUNTED#$name#$mp#($fsavail/$fssize)"
                 elif [ ! "$mp" ]; then
                     label=$(lsblk -no label "$name")
-                    echo "$UNMOUNTED#$name#$label"
+                    size=$(lsblk -no size "$name" | xargs)
+                    echo "$UNMOUNTED#$name#$label($size)"
                 fi
         esac
     done
