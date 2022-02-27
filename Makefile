@@ -1,12 +1,15 @@
-PREFIX = /usr/bin/
-APP_PREFIX = /usr/share/applications/
+PREFIX = /usr/local
+BIN_PREFIX = $(DESTDIR)$(PREFIX)/bin
+APP_PREFIX = $(DESTDIR)$(PREFIX)/share/applications/
 
 install:
-	mkdir -p $(DESTDIR)$(PREFIX)
-	cp -f fmz $(DESTDIR)$(PREFIX)
+	mkdir -p $(BIN_PREFIX)
+	cp -f fmz $(BIN_PREFIX)
 	cp -f fmz.desktop $(DESTDIR)$(APP_PREFIX)
 	update-desktop-database
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/fmz
+	rm -f $(BIN_PREFIX)/fmz
 	rm -f $(DESTDIR)$(APP_PREFIX)/fmz.desktop
+
+.PHONY: install uninstall
