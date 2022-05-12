@@ -647,7 +647,7 @@ menu_main_list() {
 
 search() {
     res=$(if exists fd; then
-              fd --color=always -H -t f
+              fd --color=always -L -H -t f
           else
               find . -type f
           fi | menu_search)
