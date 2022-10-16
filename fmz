@@ -297,24 +297,26 @@ archive_umountall() {
 }
 
 archive_extract() {
-    here=
-    s='' && [ ! -w . ] && s='sudo'
-    out="$f-extracted"
-    if [ ! "$here" ]; then
-        $s mkdir -p "$out" && cd -- "$out" || return 1
-    fi
-    # https://xkcd.com/1168/
-    case "$f" in
-        *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) $s tar xjvf "$f" ;;
-        *.tar.gz|*.tgz)                  $s tar xzvf "$f" ;;
-        *.tar.xz|*.txz)                  $s tar xJvf "$f" ;;
-        *.tar)                           $s tar xf   "$f" ;;
-        *.zip)                           $s unzip    "$f" ;;
-        *.7z|*.rar|*.iso)                $s 7z x     "$f" ;;
-        *)
-            echo "Error: unknown file format"
-            return 1;;
-    esac
+    echo "$fx" | while read -r file; do
+        here=
+        s='' && [ ! -w . ] && s='sudo'
+        out="$file-extracted"
+        if [ ! "$here" ]; then
+            $s mkdir -p "$out" && cd -- "$out" || return 1
+        fi
+        # https://xkcd.com/1168/
+        case "$file" in
+            *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) $s tar xjvf "$file" ;;
+            *.tar.gz|*.tgz)                  $s tar xzvf "$file" ;;
+            *.tar.xz|*.txz)                  $s tar xJvf "$file" ;;
+            *.tar)                           $s tar xf   "$file" ;;
+            *.zip)                           $s unzip    "$file" ;;
+            *.7z|*.rar|*.iso)                $s 7z x     "$file" ;;
+            *)
+                echo "Error: unknown file format"
+                return 1;;
+        esac
+    done
 }
 
 mktar() {
