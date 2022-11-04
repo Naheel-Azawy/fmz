@@ -938,14 +938,7 @@ tog_hidden() {
 }
 
 dnd() {
-    if exists dragon; then
-        dragoncmd=dragon
-    elif exists dragon-drop; then
-        dragoncmd=dragon-drop
-    else
-        return 1
-    fi
-    echo "$fx" | xargs -d '\n' $dragoncmd -a -x &
+    echo "$fx" | xargs -d '\n' dragon -a -x &
 }
 
 lssort() {
@@ -1285,7 +1278,7 @@ conf_init() {
     bind esc        "abort" 'Quit'
     bind f1         funq show_help
 
-    exists dragon || exists dragon-drop && {
+    exists dragon && {
         add_fun dnd 'Drag and drop'
         bind ctrl-d fun dnd
     }
