@@ -475,6 +475,37 @@ devs_mountpoint() {
     esac
 }
 
+# sync
+
+dirt() {
+    sed -En 's/Dirty:\s+(.+) kB/\1/p' /proc/meminfo
+}
+
+sync_progress() {
+    init=$(dirt)
+
+    if [ "$init" -lt 1024 ]; then
+        sync
+        return
+    fi
+
+    syncing="$TMP_DIR/sync-prog"
+    touch "$syncing"
+    {
+        sync
+        rm "$syncing"
+    } &
+
+    while [ -e "$syncing" ]; do
+        now=$(dirt)
+        per=$(echo "(($init - $now) / $init) * 100" | bc -l)
+        # echo "$per $now $init"
+        printf '%.2f%%\r' "$per"
+        sleep .5
+    done
+    echo
+}
+
 # others
 
 unmount_cwd_if_mounted() {
@@ -899,6 +930,7 @@ goto_run() {
             if [ "$mnt_here" = "$mnt_there" ]; then
                 cd ||:
             fi
+            run sync_progress
             line=$(echo "$res" | cut -d ' ' -f2-)
             devs_unmount "$line" || {
                 mp=$(lsblk "$mnt_there" -no mountpoint)
