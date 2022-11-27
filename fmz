@@ -900,7 +900,13 @@ goto_run() {
                 cd ||:
             fi
             line=$(echo "$res" | cut -d ' ' -f2-)
-            devs_unmount "$line"
+            devs_unmount "$line" || {
+                mp=$(lsblk "$mnt_there" -no mountpoint)
+                err "Failed unmounting from $mp"
+                if exists lsof; then
+                    run lsof "$mp"
+                fi
+            }
             confirm=1 ;;
     esac
 
