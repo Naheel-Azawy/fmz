@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (C) 2021 naheel-azawy
+# Copyright (C) 2021-present naheel-azawy
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -298,24 +298,31 @@ archive_umountall() {
 
 archive_extract() {
     echo "$fx" | while read -r file; do
-        here=
         s='' && [ ! -w . ] && s='sudo'
+
+        case "$file" in
+            *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) x_cmd='tar xjvf'           ;;
+            *.tar.gz|*.tgz)                  x_cmd='tar xzvf'           ;;
+            *.tar.xz|*.txz)                  x_cmd='tar xJvf'           ;;
+            *.tar.zst)                       x_cmd='tar -I unzstd -xvf' ;;
+            *.tar)                           x_cmd='tar xf'             ;;
+            *.zip|*.jar|*.apk)               x_cmd='unzip'              ;;
+            *.7z|*.rar|*.iso)                x_cmd='7z x'               ;;
+            *)                               x_cmd=                     ;;
+        esac
+
+        if [ -z "$x_cmd" ]; then
+            echo "Error: unknown archive format"
+            return 1
+        fi
+
         out="$file-extracted"
+        here=
         if [ ! "$here" ]; then
             $s mkdir -p "$out" && cd -- "$out" || return 1
         fi
-        # https://xkcd.com/1168/
-        case "$file" in
-            *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) $s tar xjvf "$file" ;;
-            *.tar.gz|*.tgz)                  $s tar xzvf "$file" ;;
-            *.tar.xz|*.txz)                  $s tar xJvf "$file" ;;
-            *.tar)                           $s tar xf   "$file" ;;
-            *.zip)                           $s unzip    "$file" ;;
-            *.7z|*.rar|*.iso)                $s 7z x     "$file" ;;
-            *)
-                echo "Error: unknown file format"
-                return 1;;
-        esac
+        # shellcheck disable=SC2086
+        $s $x_cmd "$file"
     done
 }
 
