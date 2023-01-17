@@ -778,6 +778,7 @@ paste_symlink() {
 
     if [ "$mode" = copy ]; then
         echo "$list" | while read -r file; do
+            file=$(realpath --relative-to . "$file")
             ln -s "$file" .
         done
         rm -f "$OP_FILE"
