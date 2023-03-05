@@ -675,7 +675,18 @@ menu_main_list_real() {
 }
 
 menu_main_list() {
-    if [ "$USE_PRESELECTOR" ]; then
+    if [ -n "$USE_FZF_0_37" ]; then
+        if [ -f "$preselector-n" ]; then
+            pos=$(cat "$preselector-n")
+            pos=$((pos + 1))
+        else
+            pos=0
+        fi
+        menu_main_list_real                                          \
+            --sync                                                   \
+            --bind "focus:execute-silent(echo {n} > $preselector-n)" \
+            --bind "start:pos($pos)"
+    elif [ -n "$USE_PRESELECTOR" ]; then
         menu_main_list_real --preselector "$preselector"
     else
         menu_main_list_real
@@ -720,6 +731,7 @@ clear_selection() {
         head -n1 "$preselector" > "$preselector-tmp"
         mv "$preselector-tmp" "$preselector"
     fi
+    # ignored for USE_FZF_0_37
 }
 
 copy() {
@@ -1138,6 +1150,14 @@ preselector_file() {
 preselector_set_selected() {
     preselector=$(preselector_file .)
     echo "$1" > "$preselector"
+
+    if [ -n "$USE_FZF_0_37" ]; then
+        n=$(list | remove_ansi |
+                grep -x -m1 -n "$1" |
+                cut -d: -f1)
+        n=$((n - 1))
+        echo "$n" > "$preselector-n"
+    fi
 }
 
 preselector_up() {
@@ -1147,6 +1167,14 @@ preselector_up() {
     list | remove_ansi |
         grep -B 1 "^$old\$" |
         head -n1 > "$preselector"
+
+    if [ -n "$USE_FZF_0_37" ] && [ -f "$preselector-n" ]; then
+        n=$(cat "$preselector-n")
+        n=$((n - 1))
+        if [ "$n" -ge 0 ]; then
+            echo "$n" > "$preselector-n"
+        fi
+    fi
 }
 
 doit() {
@@ -1194,7 +1222,8 @@ doit() {
                 if [ "$res" = '..' ]; then
                     case "$MENU" in
                         fzf)
-                            basename "$PWD" > "$(preselector_file ..)" ;;
+                            this=$(basename "$PWD")
+                            (cd .. && preselector_set_selected "$this") ;;
 
                         selmenu)
                             parent_child_dir=$(basename "$PWD")
@@ -1352,10 +1381,19 @@ conf_init() {
 main() {
     exists dash && PV_SHELL=dash
     USE_PRESELECTOR=
+    USE_FZF_0_37=
     case "$MENU" in
         fzf)
-            fzf --help | grep -q preselector &&
-                USE_PRESELECTOR=1 ;;
+            # minor version
+            # pos() action released in 0.36.0
+            # focus in 0.37.0
+            fzf_version=$(fzf --version | cut -d' ' -f1 | cut -d. -f2)
+            if [ "$fzf_version" -ge 37 ]; then
+                USE_FZF_0_37=1
+            else
+                fzf --help | grep -q preselector &&
+                    USE_PRESELECTOR=1
+            fi ;;
         selmenu)
             USE_PRESELECTOR=1 ;;
     esac
