@@ -56,6 +56,7 @@ preselector=
 # ==== config ====
 
 quick_goto=
+show_up=
 bindings=""
 bindings_help=""
 bookmarks="$HOME"
@@ -563,6 +564,10 @@ menu_base() {
                  --no-clear               \
                  --pointer=' '            \
                  --marker='❱'             \
+                 --scroll-off=5           \
+                 --scrollbar='▐'          \
+                 --separator=''           \
+                 --ellipsis='…'           \
                  --bind change:first      \
                  --color='marker:#ffffff' \
                  --color='fg+:reverse'    \
@@ -679,8 +684,10 @@ menu_main_list() {
         if [ -f "$preselector-n" ]; then
             pos=$(cat "$preselector-n")
             pos=$((pos + 1))
+        elif [ -n "$show_up" ]; then
+            pos=2
         else
-            pos=0
+            pos=1
         fi
         menu_main_list_real                                          \
             --sync                                                   \
@@ -964,7 +971,7 @@ goto_run() {
 
     [ "$confirm" ] && {
         echo 'Press enter to continue...'
-        read -r foo
+        read -r _
     }
 
     [ -d "$res" ] || res="$PWD"
@@ -1155,7 +1162,8 @@ preselector_set_selected() {
         n=$(list | remove_ansi |
                 grep -x -m1 -n "$1" |
                 cut -d: -f1)
-        n=$((n - 1))
+        # plus one if show_up; n-1+1=n
+        [ -n "$show_up" ] || n=$((n - 1))
         echo "$n" > "$preselector-n"
     fi
 }
@@ -1188,6 +1196,7 @@ doit() {
         }
 
         res=$({
+                 [ -n "$show_up" ] && echo ..
                  list
                  [ -z "$quick_goto" ] || {
                      echo '======'
@@ -1390,6 +1399,7 @@ main() {
             fzf_version=$(fzf --version | cut -d' ' -f1 | cut -d. -f2)
             if [ "$fzf_version" -ge 37 ]; then
                 USE_FZF_0_37=1
+                show_up=1
             else
                 fzf --help | grep -q preselector &&
                     USE_PRESELECTOR=1
