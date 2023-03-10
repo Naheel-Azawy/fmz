@@ -315,6 +315,8 @@ archive_extract() {
         # shellcheck disable=SC2086
         $s $x_cmd "$file"
     done
+    lastz=$(echo "$fx" | tail -n 1)
+    selection_set_selected "$lastz-extracted"
 }
 
 mktar() {
@@ -732,6 +734,8 @@ paste() {
         done
     fi
     rm -f "$OP_FILE"
+    lastf=$(echo "$list" | tail -n 1)
+    selection_set_selected "$lastf"
 }
 
 paste_symlink() {
@@ -746,6 +750,8 @@ paste_symlink() {
             ln -s "$file" .
         done
         rm -f "$OP_FILE"
+        lastf=$(echo "$list" | tail -n 1)
+        selection_set_selected "$lastf"
     fi
 }
 
@@ -1059,10 +1065,12 @@ selection_file() {
 }
 
 selection_set_selected() {
+    file=$(basename "$1")
     selection=$(selection_file .)
-    n=$(list | remove_ansi |
-            grep -x -m1 -n "$1" |
+    n=$(list | remove_ansi         |
+            grep -x -m1 -n "$file" |
             cut -d: -f1)
+    [ -n "$n" ] || return
     # plus one if show_up; n-1+1=n
     [ -n "$show_up" ] || n=$((n - 1))
     echo "$n" > "$selection"
