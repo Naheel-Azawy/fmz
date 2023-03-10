@@ -52,7 +52,7 @@ CD=
 W= ; H=
 PV_W= ; PV_H= ; PV_X= ; PV_Y= ;
 PV_WIN= ; USE_STPV=
-preselector=
+selection=
 
 # ==== config ====
 
@@ -641,17 +641,17 @@ menu_main_list_real() {
 }
 
 menu_main_list() {
-    if [ -f "$preselector-n" ]; then
-        pos=$(cat "$preselector-n")
+    if [ -f "$selection" ]; then
+        pos=$(cat "$selection")
         pos=$((pos + 1))
     elif [ -n "$show_up" ]; then
         pos=2
     else
         pos=1
     fi
-    menu_main_list_real                                          \
-        --sync                                                   \
-        --bind "focus:execute-silent(echo {n} > $preselector-n)" \
+    menu_main_list_real                                      \
+        --sync                                               \
+        --bind "focus:execute-silent(echo {n} > $selection)" \
         --bind "start:pos($pos)"
 }
 
@@ -765,12 +765,12 @@ delete() {
     echo "$fx" | while read -r file; do
         case "$ans" in
             Trash)
-                preselector_up
+                selection_up
                 # move current file or selected files to trash folder
                 # using trash-cli (https://github.com/andreafrancia/trash-cli)
                 gio trash "$file" || trash-put "$file" ;;
             Delete*)
-                preselector_up
+                selection_up
                 file=$(basename "$file")
                 rm -r -- "$file" ;;
         esac
@@ -790,7 +790,7 @@ rename() {
                 echo "$name already exists"
             elif [ "$name" ] && [ "$name" != "$f" ]; then
                 mv -- "$f" "$name"
-                preselector_set_selected "$name"
+                selection_set_selected "$name"
             fi
         }
     else
@@ -848,7 +848,7 @@ mkfile() {
         echo "$name already exists"
     elif [ "$name" ]; then
         touch "$name"
-        preselector_set_selected "$name"
+        selection_set_selected "$name"
     fi
 }
 
@@ -1083,36 +1083,36 @@ update_term_size() {
     esac
 }
 
-preselector_file() {
+selection_file() {
     sum=$(realpath -- "$1" | cksum | cut -d ' ' -f1)
     echo "${LAST_FILE}${sum}"
 }
 
-preselector_set_selected() {
-    preselector=$(preselector_file .)
+selection_set_selected() {
+    selection=$(selection_file .)
     n=$(list | remove_ansi |
             grep -x -m1 -n "$1" |
             cut -d: -f1)
     # plus one if show_up; n-1+1=n
     [ -n "$show_up" ] || n=$((n - 1))
-    echo "$n" > "$preselector-n"
+    echo "$n" > "$selection"
 }
 
-preselector_up() {
+selection_up() {
     # moves the selection up
-    preselector=$(preselector_file .)
-    if [ -f "$preselector-n" ]; then
-        n=$(cat "$preselector-n")
+    selection=$(selection_file .)
+    if [ -f "$selection" ]; then
+        n=$(cat "$selection")
         n=$((n - 1))
         if [ "$n" -ge 0 ]; then
-            echo "$n" > "$preselector-n"
+            echo "$n" > "$selection"
         fi
     fi
 }
 
 doit() {
     while :; do
-        preselector=$(preselector_file .)
+        selection=$(selection_file .)
 
         [ "$TMUX" ] && {
             title=$(basename "$(realpath .)")
@@ -1157,7 +1157,7 @@ doit() {
                     case "$MENU" in
                         fzf)
                             this=$(basename "$PWD")
-                            (cd .. && preselector_set_selected "$this") ;;
+                            (cd .. && selection_set_selected "$this") ;;
                     esac
                 fi
 
