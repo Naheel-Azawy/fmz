@@ -5,7 +5,7 @@
   [[./vid/fmz-2021-04-03_05.16.10.mp4]]
 
 ** Dependencies
-   core utils and [[https://github.com/junegunn/fzf][fzf]].
+   core utils, bc, and [[https://github.com/junegunn/fzf][fzf]].
 
 ** Optional dependencies/features
    Having one of those is not a must, they only unlock new superpowers.
@@ -115,9 +115,6 @@
    - I use fzf anyway...
      Even inside lf, I used to have a key binding to fzf to find and jump to wherever I want. In practice, I found myself opening fzf almost every time I use lf.
    I'm not trying to say lf is bad. It is amazing. It just wasn't enough for me.
-
-** Annoying selection
-   If the pointer and selection get reset after every operation, this is due to fzf not supporting this feature (as of now). There's a discussion in a [[https://github.com/junegunn/fzf/pull/2440][pull request]] regarding this. Feel free to join and/or try my branch.
 
 ** License
    GPL3

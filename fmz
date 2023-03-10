@@ -19,6 +19,8 @@
 
 NAME='fmz'
 MENU='fzf'
+FZF_MIN_VERSION=0.38
+
 SELF=$(realpath "$0")
 ID=$$
 [ "$XDG_CONFIG_HOME" ] ||
@@ -55,7 +57,7 @@ preselector=
 # ==== config ====
 
 quick_goto=
-show_up=
+show_up=1
 bindings=""
 bindings_help=""
 bookmarks="$HOME"
@@ -639,24 +641,18 @@ menu_main_list_real() {
 }
 
 menu_main_list() {
-    if [ -n "$USE_FZF_0_37" ]; then
-        if [ -f "$preselector-n" ]; then
-            pos=$(cat "$preselector-n")
-            pos=$((pos + 1))
-        elif [ -n "$show_up" ]; then
-            pos=2
-        else
-            pos=1
-        fi
-        menu_main_list_real                                          \
-            --sync                                                   \
-            --bind "focus:execute-silent(echo {n} > $preselector-n)" \
-            --bind "start:pos($pos)"
-    elif [ -n "$USE_PRESELECTOR" ]; then
-        menu_main_list_real --preselector "$preselector"
+    if [ -f "$preselector-n" ]; then
+        pos=$(cat "$preselector-n")
+        pos=$((pos + 1))
+    elif [ -n "$show_up" ]; then
+        pos=2
     else
-        menu_main_list_real
+        pos=1
     fi
+    menu_main_list_real                                          \
+        --sync                                                   \
+        --bind "focus:execute-silent(echo {n} > $preselector-n)" \
+        --bind "start:pos($pos)"
 }
 
 # ==== operations ====
@@ -692,14 +688,6 @@ open_with_def() {
             mimeopen --ask-default "$f" >/dev/null 2>/dev/null &
 }
 
-clear_selection() {
-    if [ -f "$preselector" ]; then
-        head -n1 "$preselector" > "$preselector-tmp"
-        mv "$preselector-tmp" "$preselector"
-    fi
-    # ignored for USE_FZF_0_37
-}
-
 copy() {
     exists xclip &&
         printf '%s' "$fx" | xclip -i -selection clipboard
@@ -707,7 +695,6 @@ copy() {
         echo "copy"
         echo "$fx"
     } > "$OP_FILE"
-    clear_selection
 }
 
 move() {
@@ -717,7 +704,6 @@ move() {
         echo "move"
         echo "$fx"
     } > "$OP_FILE"
-    clear_selection
 }
 
 paste() {
@@ -1104,27 +1090,18 @@ preselector_file() {
 
 preselector_set_selected() {
     preselector=$(preselector_file .)
-    echo "$1" > "$preselector"
-
-    if [ -n "$USE_FZF_0_37" ]; then
-        n=$(list | remove_ansi |
-                grep -x -m1 -n "$1" |
-                cut -d: -f1)
-        # plus one if show_up; n-1+1=n
-        [ -n "$show_up" ] || n=$((n - 1))
-        echo "$n" > "$preselector-n"
-    fi
+    n=$(list | remove_ansi |
+            grep -x -m1 -n "$1" |
+            cut -d: -f1)
+    # plus one if show_up; n-1+1=n
+    [ -n "$show_up" ] || n=$((n - 1))
+    echo "$n" > "$preselector-n"
 }
 
 preselector_up() {
-    # clears marked items and moves the selection up
+    # moves the selection up
     preselector=$(preselector_file .)
-    old=$(head -n1 "$preselector")
-    list | remove_ansi |
-        grep -B 1 "^$old\$" |
-        head -n1 > "$preselector"
-
-    if [ -n "$USE_FZF_0_37" ] && [ -f "$preselector-n" ]; then
+    if [ -f "$preselector-n" ]; then
         n=$(cat "$preselector-n")
         n=$((n - 1))
         if [ "$n" -ge 0 ]; then
@@ -1319,21 +1296,20 @@ conf_init() {
 
 main() {
     exists dash && PV_SHELL=dash
-    USE_PRESELECTOR=
-    USE_FZF_0_37=
     case "$MENU" in
         fzf)
-            # minor version
-            # pos() action released in 0.36.0
-            # focus in 0.37.0
-            fzf_version=$(fzf --version | cut -d' ' -f1 | cut -d. -f2)
-            if [ "$fzf_version" -ge 37 ]; then
-                USE_FZF_0_37=1
-                show_up=1
-            else
-                fzf --help | grep -q preselector &&
-                    USE_PRESELECTOR=1
+            fzf_version=$(fzf --version | cut -d' ' -f1)
+            fzf_version_major=$(echo "$fzf_version" | cut -d. -f1)
+            fzf_version_minor=$(echo "$fzf_version" | cut -d. -f2)
+            fzf_version="$fzf_version_major.$fzf_version_minor"
+            fzf_ok=$(echo "($fzf_version - $FZF_MIN_VERSION) >= 0" | bc -l)
+            if [ "$fzf_ok" != 1 ]; then
+                echo "fzf version $fzf_version is old, fzf $FZF_MIN_VERSION is required"
+                return 1
             fi ;;
+        *)
+            echo "Menu '$MENU' is not supported" >&2
+            return 1 ;;
     esac
 
     mkdir -p "$MOUNTS_DIR"
