@@ -23,6 +23,7 @@
    | udisks2            | mount and unmount devices        |
    | [[https://github.com/phatina/simple-mtpfs/][simple-mtpfs]] ([[https://aur.archlinux.org/packages/simple-mtpfs/][AUR]]) | mount and unmount MTP devices    |
    | dunst              | actions with mount notifications |
+   | vidir (moreutils)  | bulk rename in a directory       |
 
 ** Installation
    #+begin_src shell-script
