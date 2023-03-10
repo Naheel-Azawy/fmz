@@ -19,7 +19,6 @@
 
 NAME='fmz'
 MENU='fzf'
-#MENU='selmenu'
 SELF=$(realpath "$0")
 ID=$$
 [ "$XDG_CONFIG_HOME" ] ||
@@ -74,12 +73,6 @@ run_fun() {
         fzf)
             fx=$(while read -r f; do realpath -s -- "$f"; done < "$2")
             f=$(echo "$fx" | head -n1) ;;
-        selmenu)
-            preselector=$(preselector_file .)
-            text=$(remove_ansi < "$preselector" | xargs realpath -s --)
-            f=$(echo "$text" | head -n1)
-            fx=$(echo "$text" | tail -n +2)
-            [ -n "$fx" ] || fx="$f" ;;
     esac
     id=$ID
     FMZ_SHELL=$ID
@@ -99,8 +92,6 @@ bind() {
                 fzf)
                     cmd="execute(cp {+f} $TMP_FILE)+abort"
                     cmd="$cmd+execute(echo '\$ run_fun $fun $TMP_FILE')" ;;
-                selmenu)
-                    cmd="accept '\$ run_fun $fun'" ;;
             esac ;;
         *)
             fun='nop'
@@ -111,9 +102,6 @@ bind() {
         fzf)
             [ -n "$bindings" ] && bindings="$bindings,"
             bindings="$bindings$key:$cmd" ;;
-        selmenu)
-            bindings="${bindings}bind $key \"$cmd\"
-" ;;
     esac
     bindings_help="$bindings_help$key $fun $doc
 "
@@ -577,16 +565,12 @@ menu_base() {
                  --color='gutter:-1'      \
                  --info=default           \
                  "$@" ;;
-
-        selmenu)
-            selmenu --no-reset "$@" ;;
     esac
 }
 
 reset_terminal() {
     case "$MENU" in
-        fzf)     tput rmcup ;;
-        selmenu) selmenu --reset ;;
+        fzf) tput rmcup ;;
     esac
 }
 
@@ -598,9 +582,6 @@ menu_interface() {
                 --print-query \
                 --info=hidden \
                 "$@" | tail -n1 ;;
-
-        selmenu)
-            menu_base "$@" ;;
     esac
 }
 
@@ -624,9 +605,6 @@ menu_search() {
                 --preview="$(pv_cmd)"      \
                 --layout=reverse           \
                 --info=inline ;;
-
-        selmenu)
-            menu_base --preview-cmd "$(pv_cmd)" ;;
     esac
 }
 
@@ -641,13 +619,6 @@ menu_goto() {
                 --preview="$pv"              \
                 --preview-window='bottom:1%' \
                 --prompt='Go to> ' ;;
-
-        selmenu)
-            b="bind ctrl-u 'accept_prefix UNMOUNT'"
-            menu_interface         \
-                --eval "$b"        \
-                --status-cmd "$pv" \
-                --prompt 'Go to> ';;
     esac
 }
 
@@ -664,18 +635,6 @@ menu_main_list_real() {
                 --query "$query"           \
                 --info inline              \
                 "$@" | tail -n1 ;;
-
-        selmenu)
-            # shellcheck disable=SC2016
-            status='[ -e "$selected_text" ] && ls --color=always -lhd "$selected_text"'
-            menu_base                     \
-                --multi                   \
-                --preview-cmd "$(pv_cmd)" \
-                --status-cmd "$status"    \
-                --header "$(header)"      \
-                --eval "$bindings"        \
-                --query "$query"          \
-                "$@" ;;
     esac
 }
 
@@ -1109,10 +1068,6 @@ pv_cmd() {
                 cmd="$cmd && '$SELF' --eval preview"
                 cmd="$cmd '$USE_STPV' {} $PV_W $PV_H $PV_X $PV_Y $ID"
             fi ;;
-
-        selmenu)
-            cmd="'$SELF' --eval preview"
-            cmd="$cmd '$USE_STPV' \"\$selected_text\" $PV_W $PV_H $PV_X $PV_Y $ID" ;;
     esac
     echo "$cmd"
 }
@@ -1139,13 +1094,6 @@ update_term_size() {
                 PV_W=$((W - 2))
                 PV_H=$((((H - 1) / 2) - 2))
             fi ;;
-
-        selmenu)
-            PV_WIN='ignored'
-            PV_X=$((W / 2))
-            PV_Y=1
-            PV_W=$((W / 2))
-            PV_H=$((H - 2)) ;;
     esac
 }
 
@@ -1233,13 +1181,6 @@ doit() {
                         fzf)
                             this=$(basename "$PWD")
                             (cd .. && preselector_set_selected "$this") ;;
-
-                        selmenu)
-                            parent_child_dir=$(basename "$PWD")
-                            # making sure that ansi colors are well matched
-                            text=$(list -d "../$parent_child_dir" |
-                                       sed 's@../@@')
-                            remove_ansi_reset "$text" > "$(preselector_file ..)" ;;
                     esac
                 fi
 
@@ -1303,17 +1244,6 @@ conf_init() {
             cmd_pv_up='preview-up'
             cmd_pv_down='preview-down'
             cmd_refresh='abort+execute(echo .)' ;;
-
-        selmenu)
-            cmd_accept='accept'
-            cmd_parent='accept ..'
-            cmd_sel_up='toggle; up'
-            cmd_sel_down='toggle; down'
-            cmd_sel_all='select_all'
-            cmd_sel_clear='clear_selection'
-            cmd_pv_up='preview_up'
-            cmd_pv_down='preview_down'
-            cmd_refresh='accept .' ;;
     esac
 
     exists mimeopen && {
@@ -1404,8 +1334,6 @@ main() {
                 fzf --help | grep -q preselector &&
                     USE_PRESELECTOR=1
             fi ;;
-        selmenu)
-            USE_PRESELECTOR=1 ;;
     esac
 
     mkdir -p "$MOUNTS_DIR"
