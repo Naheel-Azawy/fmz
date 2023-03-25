@@ -143,6 +143,10 @@ info() {
     echo "$@"
 }
 
+ask() {
+    printf '\033[1m\033[33mQUESTION:\033[0m %s ' "$1"
+}
+
 err() {
     {
         printf '\033[1m\033[31mERROR:\033[0m '
@@ -885,6 +889,16 @@ goto_run() {
                 err "Failed unmounting from $mp"
                 if exists lsof; then
                     run lsof "$mp"
+                    pids=$(lsof "$mp" 2>/dev/null |
+                               tail -n +2 | awk '{print $2}' | tr '\n' ' ')
+                    ask 'Kill all of the above? [y/N]'
+                    read -r ans
+                    if [ "$ans" = y ]; then
+                        # shellcheck disable=SC2086
+                        run kill $pids
+                        devs_unmount "$line" ||
+                            err "Failed unmounting again"
+                    fi
                 fi
             }
             confirm=1 ;;
