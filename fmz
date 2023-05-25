@@ -301,7 +301,7 @@ archive_extract() {
             *.tar.xz|*.txz)                  x_cmd='tar xJvf'           ;;
             *.tar.zst)                       x_cmd='tar -I unzstd -xvf' ;;
             *.tar)                           x_cmd='tar xf'             ;;
-            *.zip|*.jar|*.apk)               x_cmd='unzip'              ;;
+            *.zip|*.jar|*.apk|*.ftf)         x_cmd='unzip'              ;;
             *.7z|*.rar|*.iso)                x_cmd='7z x'               ;;
             *)                               x_cmd=                     ;;
         esac
