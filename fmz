@@ -885,7 +885,6 @@ goto_run() {
     case "$res" in
         "$RECENT"*)
             res=$(echo "$res" | cut -d ' ' -f2-)
-            echo ">>>$res<<<"
             d=$(dirname "$res")
             n=$(basename "$res")
             cd "$d" && selection_set_selected "$n" ;;
