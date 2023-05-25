@@ -30,6 +30,7 @@ CFG_FILE="$CFG_DIR/${NAME}rc.sh"
 OP_FILE=/tmp/$NAME-op
 HIDDEN_FILE=/tmp/$NAME-hidden
 SORT_FILE=/tmp/$NAME-sort
+RECENT_DIR="/tmp/$NAME-recent"
 TMP_DIR="/tmp/$NAME-tmp-$ID"
 TMP_FILE="$TMP_DIR/tmp"
 LAST_FILE="$TMP_DIR/last-"
@@ -43,8 +44,9 @@ PV_SHELL=bash
 # suggestions are welcomed
 MOUNTS_DIR="$HOME/.local/media"
 
-MOUNTED='▮'
-UNMOUNTED='▯'
+MOUNTED='▮MNT'
+UNMOUNTED='▯MNT'
+RECENT='←REC'
 
 # ==== global parameters ====
 
@@ -858,9 +860,22 @@ mkarchive() {
         xargs -d '\n' "$SELF" --eval "mk$type" "$name"
 }
 
+recent_push() {
+    realpath "$1" >> "$RECENT_DIR"
+    awk '!x[$0]++' < "$RECENT_DIR" | while read -r line; do
+        [ -f "$line" ] && echo "$line"
+    done | tail -n 10 > "$RECENT_DIR.min"
+    mv "$RECENT_DIR.min" "$RECENT_DIR"
+}
+
+recent_list() {
+    tac "$RECENT_DIR"
+}
+
 goto_items() {
     echo "$bookmarks" | tr ':' '\n'
     devs_ls
+    recent_list | xargs -l1 echo "$RECENT"
 }
 
 goto_run() {
@@ -868,6 +883,12 @@ goto_run() {
     confirm=
     reset_terminal
     case "$res" in
+        "$RECENT"*)
+            res=$(echo "$res" | cut -d ' ' -f2-)
+            echo ">>>$res<<<"
+            d=$(dirname "$res")
+            n=$(basename "$res")
+            cd "$d" && selection_set_selected "$n" ;;
         "$MOUNTED"*)
             res=$(devs_mountpoint "$res") ;;
         "$UNMOUNTED"*)
@@ -1142,6 +1163,8 @@ doit() {
                     else
                         less -c "$res"
                     fi 2>/dev/null
+
+                    recent_push "$res"
                 fi
 
             elif [ -d "$res" ]; then
