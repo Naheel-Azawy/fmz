@@ -1079,15 +1079,15 @@ update_term_size() {
                 PV_X= ; PV_Y= ; PV_W= ; PV_H=
             elif [ "$W" -gt $((H * 2 + 10)) ]; then
                 PV_WIN='right:50%'
-                PV_X=$((W / 2 + 2))
-                PV_Y=2
-                PV_W=$((((W - 1) / 2) - 2))
+                PV_X=$((W / 2 + 3))
+                PV_Y=3
+                PV_W=$((((W - 1) / 2) - 4))
                 PV_H=$((H - 3))
             else
                 PV_WIN='down:50%'
-                PV_X=1
+                PV_X=2
                 PV_Y=$((H / 2 + 3))
-                PV_W=$((W - 2))
+                PV_W=$((W - 3))
                 PV_H=$((((H - 1) / 2) - 2))
             fi ;;
     esac
