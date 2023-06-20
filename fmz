@@ -998,11 +998,29 @@ list() {
     if [ -f "$HIDDEN_FILE" ]; then
         lsopts="$lsopts -A"
     fi
-    if [ -f "$SORT_FILE" ]; then
-        sort=$(cat "$SORT_FILE")
-        [ "$sort" ] &&
-            lsopts="$lsopts --sort=$sort"
+
+    sort=
+    if [ -d "$1" ] && [ -f "$1"/.sort-by ]
+    then sort=$(cat "$1"/.sort-by)
+    elif [ -f ./.sort-by ]
+    then sort=$(cat ./.sort-by)
+    elif [ -f "$SORT_FILE" ]
+    then sort=$(cat "$SORT_FILE")
     fi
+    # make sure nothing nasty is in the sort file
+    sort_opts='none|size|time|version|extension|width'
+    sort=$(echo "$sort" |
+               sed -rn 's/^(reverse )?(name|'$sort_opts')$/\1\n\2/p')
+    sort_reverse=$(echo "$sort" | head -n1 | xargs)
+    sort=$(echo "$sort" | tail -n1 | xargs)
+    case "$sort" in
+        name) ;; # already sorted by name
+        none|size|time|version|extension|width)
+            lsopts="$lsopts --sort=$sort" ;;
+    esac
+    [ "$sort_reverse" = reverse ] &&
+        lsopts="$lsopts --reverse"
+
     # shellcheck disable=SC2086
     res=$(command ls $lsopts "$@")
     if [ "$res" ]; then
