@@ -1222,6 +1222,11 @@ doit() {
             # because the menu messes with stdin and out
             # so, we can exit with a command to be executed
             cmd=$(echo "$res" | sed 's/^\$ *//')
+            eval "$cmd"
+
+        elif echo "$res" | grep -q '^>'; then
+            # same as above, but show everything
+            cmd=$(echo "$res" | sed 's/^> *//')
             reset_terminal
             run_show "$cmd"
             eval "$cmd"
