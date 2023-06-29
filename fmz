@@ -72,10 +72,17 @@ add_fun() {
 "
 }
 
+is_invalid_file() {
+    ! [ -e "$1" ] || [ "$1" = '..' ] || [ "$1" = "$EMPTY" ]
+}
+
 run_fun() {
     case "$MENU" in
         fzf)
-            fx=$(while read -r f; do realpath -s -- "$f"; done < "$2")
+            fx=$(while read -r f; do
+                     is_invalid_file "$f" && continue
+                     realpath -s -- "$f"
+                 done < "$2")
             f=$(echo "$fx" | head -n1) ;;
     esac
     id=$ID
@@ -697,6 +704,7 @@ open_with_def() {
 }
 
 copy() {
+    [ -n "$fx" ] || return
     exists xclip &&
         printf '%s' "$fx" | xclip -i -selection clipboard
     {
@@ -706,6 +714,7 @@ copy() {
 }
 
 move() {
+    [ -n "$fx" ] || return
     exists xclip &&
         printf '%s' "$fx" | xclip -i -selection clipboard
     {
@@ -719,6 +728,7 @@ paste() {
     load=$(cat "$OP_FILE")
     mode=$(echo "$load" | sed -n '1p')
     list=$(echo "$load" | sed '1d')
+    [ -n "$list" ] || return
 
     if exists cp-p; then
         srcf=$(mktemp)
@@ -739,7 +749,6 @@ paste() {
             esac
         done
     fi
-    rm -f "$OP_FILE"
     lastf=$(echo "$list" | tail -n 1)
     selection_set_selected "$lastf"
 }
