@@ -163,8 +163,12 @@ err() {
     } >&2
 }
 
-run() {
+run_show() {
     printf '\033[1;32m>>>\033[0m %s\n' "$*" >&2
+}
+
+run() {
+    run_show "$@"
     "$@"
 }
 
@@ -525,7 +529,7 @@ unmount_cwd_if_mounted() {
     cwd="$PWD"
     dev=$(findmnt -T . -no source)
     cd ||:
-    tput rmcup
+    reset_terminal
     udisksctl unmount --no-user-interaction -b "$dev" 2>&1 ||
         cd "$cwd" ||:
 }
@@ -651,6 +655,7 @@ menu_main_list_real() {
                 --header "$(header)"       \
                 --query "$query"           \
                 --info inline              \
+                --print-query              \
                 "$@" | tail -n1 ;;
     esac
 }
@@ -860,7 +865,7 @@ mkarchive() {
           } | menu_interface --prompt "Archive type> ")
     name=$(basename "$(realpath -- "$f")" | cut -d . -f1)
     name=$(echo | menu_interface --prompt 'Archive name> ' --query "$name")
-    tput rmcup
+    reset_terminal
     [ -z "$name" ] && {
         info "No name provided for the $type, skipping"
         return 1
@@ -1217,7 +1222,11 @@ doit() {
             # because the menu messes with stdin and out
             # so, we can exit with a command to be executed
             cmd=$(echo "$res" | sed 's/^\$ *//')
+            reset_terminal
+            run_show "$cmd"
             eval "$cmd"
+            echo 'Press enter to continue...'
+            read -r _
 
         elif [ -z "$res" ]; then
             break
@@ -1253,7 +1262,7 @@ conf_init() {
 
     case "$MENU" in
         fzf)
-            cmd_accept='accept-non-empty'
+            cmd_accept='accept'
             cmd_parent='abort+execute(echo ..)'
             cmd_sel_up='toggle+up'
             cmd_sel_down='toggle+down'
