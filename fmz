@@ -853,6 +853,21 @@ new() {
     case "$res" in
         'Folder') mkfolder ;;
         'File')   mkfile   ;;
+        *) # if not specified, take a guess
+            name="$res"
+            if [ -e "$name" ]; then
+                echo "$name already exists"
+                return
+            fi
+
+            if echo "$name" | grep -q '..*\...*'; then
+                # something with an extension, likely a file
+                touch "$name"
+                selection_set_selected "$name"
+            else
+                mkdir -p "$name"
+                cd -- "$name" || return 1
+            fi
     esac
 }
 
