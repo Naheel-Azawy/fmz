@@ -73,7 +73,9 @@ add_fun() {
 }
 
 is_invalid_file() {
-    ! [ -e "$1" ] || [ "$1" = '..' ] || [ "$1" = "$EMPTY" ]
+    [ -z "$1" ] || # empty
+        ! { [ -e "$1" ] || [ -L "$1" ]; } || # file does not exists and not dead link
+        [ "$1" = '..' ] || [ "$1" = "$EMPTY" ] # reserved
 }
 
 run_fun() {
