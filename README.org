@@ -5,7 +5,7 @@
   [[./vid/fmz-2021-04-03_05.16.10.mp4]]
 
 ** Dependencies
-   core utils, bc, and [[https://github.com/junegunn/fzf][fzf]].
+   core utils and [[https://github.com/junegunn/fzf][fzf]].
 
 ** Optional dependencies/features
    Having one of those is not a must, they only unlock new superpowers.
