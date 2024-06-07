@@ -34,6 +34,7 @@ RECENT_FILE="/tmp/$NAME-recent"
 TMP_DIR="/tmp/$NAME-tmp-$ID"
 TMP_FILE="$TMP_DIR/tmp"
 LAST_FILE="$TMP_DIR/last-"
+PENDING_FILE="$TMP_DIR/pnd"
 EMPTY='/EMPTY/'
 ESC=$(printf '\033')
 
@@ -93,6 +94,25 @@ run_fun() {
     eval "$1"
 }
 
+force_res_bind() {
+    # in the latest versions of fzf, when echoing in execute(),
+    # it will echo to the stdout and will not be caught by $()
+    echo "abort+execute(echo $1 > '$PENDING_FILE')"
+}
+
+check_forced_res() {
+    # must always be called after res=$(menu ...)
+    # if $PENDING_FILE is used
+    res="$1"
+    pending_res=$(cat "$PENDING_FILE")
+    if [ -n "$pending_res" ]; then
+        echo "$pending_res"
+        echo > "$PENDING_FILE"
+    else
+        echo "$res"
+    fi
+}
+
 bind() {
     key="$1"
     cmd="$2"
@@ -103,8 +123,8 @@ bind() {
             doc=
             case "$MENU" in
                 fzf)
-                    cmd="execute(cp {+f} $TMP_FILE)+abort"
-                    cmd="$cmd+execute(echo '\$ run_fun $fun $TMP_FILE')" ;;
+                    cmd="execute(cp {+f} $TMP_FILE)"
+                    cmd="$cmd+"$(force_res_bind "'\$ run_fun $fun $TMP_FILE'") ;;
             esac ;;
         *)
             fun='nop'
@@ -673,7 +693,7 @@ menu_goto() {
     pv='echo Press ctrl-u to unmount devices if any'
     case "$MENU" in
         fzf)
-            b="ctrl-u:abort+execute(echo 'UNMOUNT' {})"
+            b='ctrl-u:'$(force_res_bind "'UNMOUNT' {}")
             menu_interface                   \
                 --bind="$b"                  \
                 --preview="$pv"              \
@@ -1008,6 +1028,7 @@ goto() {
                  realpath .
                  goto_items
              } | menu_goto)
+        res=$(check_forced_res "$res")
         goto_run "$res"
     done
 }
@@ -1209,6 +1230,9 @@ selection_up() {
 }
 
 doit() {
+    touch "$PENDING_FILE"
+    chmod 600 "$PENDING_FILE"
+
     while :; do
         selection=$(selection_file .)
 
@@ -1226,6 +1250,8 @@ doit() {
                      goto_items
                  }
              } | menu_main_list)
+        res=$(check_forced_res "$res")
+
         [ "$USE_STPV" ] &&
             stpvimg --clear $ID
 
@@ -1322,14 +1348,14 @@ conf_init() {
     case "$MENU" in
         fzf)
             cmd_accept='accept'
-            cmd_parent='abort+execute(echo ..)'
+            cmd_parent=$(force_res_bind ..)
             cmd_sel_up='toggle+up'
             cmd_sel_down='toggle+down'
             cmd_sel_all='select-all'
             cmd_sel_clear='clear-selection'
             cmd_pv_up='preview-up'
             cmd_pv_down='preview-down'
-            cmd_refresh='abort+execute(echo .)' ;;
+            cmd_refresh=$(force_res_bind .) ;;
     esac
 
     exists mimeopen && {
