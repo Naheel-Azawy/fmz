@@ -656,6 +656,19 @@ menu_base() {
     esac
 }
 
+menu_base_refreshable() {
+    case "$MENU" in
+        fzf)
+            # https://github.com/junegunn/fzf/blob/master/CHANGELOG.md#0460
+            if [ -n "$cmd_refresh" ] &&
+                   [ "$fzf_version" -ge 46000 ]; then
+                menu_base --bind "resize:$cmd_refresh" "$@"
+            else
+                menu_base "$@"
+            fi ;;
+    esac
+}
+
 reset_terminal() {
     case "$MENU" in
         fzf) tput rmcup ;;
@@ -713,7 +726,7 @@ menu_goto() {
 menu_main_list_real() {
     case "$MENU" in
         fzf)
-            menu_base                      \
+            menu_base_refreshable          \
                 --multi                    \
                 --preview-window "$PV_WIN" \
                 --preview "$(pv_cmd)"      \
