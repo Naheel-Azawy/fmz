@@ -984,7 +984,9 @@ recent_list() {
 goto_items() {
     echo "$bookmarks" | tr ':' '\n'
     devs_ls
-    rec=$(recent_list) && echo "$rec" | xargs -l1 echo "$RECENT"
+    rec=$(recent_list) && echo "$rec" | while read -r l; do
+            echo "$RECENT" "$l"
+        done
 }
 
 goto_run() {
