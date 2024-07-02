@@ -1077,6 +1077,11 @@ open_with_def() {
             mimeopen --ask-default "$f" >/dev/null 2>/dev/null &
 }
 
+open_with_editor() {
+    tput rmcup
+    "$EDITOR" "$f"
+}
+
 copy() {
     [ -n "$fx" ] || return
     exists xclip &&
@@ -1193,6 +1198,32 @@ rename() {
 
 rename_all() {
     vidir
+}
+
+chmod_op() {
+    tput rmcup
+    m=$({
+           echo +x
+           echo -x
+           echo 644
+           echo 755
+       } | menu_interface --prompt 'chmod> ')
+    [ -n "$m" ] || return
+    echo "$fx" | while read -r file; do
+        chmod "$m" "$file"
+    done
+}
+
+du_op() {
+    tput rmcup
+    du -sh "$f"
+    wait_user
+}
+
+stat_op() {
+    tput rmcup
+    stat "$f"
+    wait_user
 }
 
 mkfolder() {
@@ -1677,6 +1708,8 @@ conf_init() {
         add_fun open_with     'Open with'
         add_fun open_with_def 'Set default'
     }
+    [ -n "$EDITOR" ] && exists "$EDITOR" &&
+        add_fun open_with_editor 'Edit text file'
 
     add_fun new             'New file or folder'
     add_fun copy            'Copy'
@@ -1686,6 +1719,9 @@ conf_init() {
     add_fun delete          'Delete'
     add_fun rename          'Rename'
     exists vidir && add_fun rename_all 'Rename all'
+    add_fun chmod_op        'Chmod'
+    add_fun du_op           'Disk usage'
+    add_fun stat_op         'File status'
     add_fun sort_normally   'Sort normally'
     add_fun sort_by_time    'Sort by time'
     add_fun sort_by_size    'Sort by size'
