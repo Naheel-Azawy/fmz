@@ -23,10 +23,9 @@ FZF_MIN_VERSION=38000
 
 SELF=$(realpath "$0")
 ID=$$
-[ "$XDG_CONFIG_HOME" ] ||
-    XDG_CONFIG_HOME="$HOME/.config"
-CFG_DIR="$XDG_CONFIG_HOME"
+CFG_DIR=${XDG_CONFIG_HOME:-"$HOME/.config"}
 CFG_FILE="$CFG_DIR/${NAME}rc.sh"
+TRASH_MAIN=${XDG_DATA_HOME:-"$HOME/.local/share"}/Trash
 OP_FILE=/tmp/$NAME-op
 HIDDEN_FILE=/tmp/$NAME-hidden
 SORT_FILE=/tmp/$NAME-sort
@@ -222,6 +221,285 @@ version_to_int() {
     v2=$(echo "$v" | cut -d. -f2)
     v3=$(echo "$v" | cut -d. -f3)
     echo $((v3 + v2 * 1000 + v1 * 1000000))
+}
+
+human() {
+    # https://unix.stackexchange.com/questions/44040/a-standard-tool-to-convert-a-byte-count-into-human-kib-mib-etc-like-du-ls1
+    echo "$1" | awk 'function human(x) {
+    s=" B   KiB MiB GiB TiB EiB PiB YiB ZiB"
+    while (x >= 1024 && length(s) > 1) {
+        x /= 1024
+        s = substr(s, 5)
+    }
+    s = substr(s, 1, 4)
+    xf = (s == " B  ") ? "%d" : "%.2f"
+    return sprintf(xf"%s", x, s)
+} {print human($1)}'
+}
+
+wait_user() {
+    echo 'Press enter to continue...'
+    read -r _
+}
+
+# ==== trash ====
+
+trashes_list() {
+    if [ -d "$TRASH_MAIN" ]; then echo "$TRASH_MAIN"; fi
+    uid=$(id -u)
+    findmnt -nlo target | while read -r d; do
+        for t in "$d/.Trash-$uid" "$d/.Trash"; do
+            if [ -d "$t" ]; then echo "$t"; fi
+        done
+    done
+}
+
+trash_check() {
+    [ -d "$1" ] && [ -d "$1/info" ] && [ -d "$1/files" ] &&
+        return 0
+    mkdir -p -- "$1/info" "$1/files"
+    chmod 700 "$1"
+}
+
+trash_find_for() {
+    trash_check "$TRASH_MAIN"
+    target=$(findmnt -no target -T "$1")
+    main_target=$(findmnt -no target -T "$TRASH_MAIN")
+
+    if [ "$main_target" = "$target" ]; then
+        trash_check "$TRASH_MAIN"
+        echo "$TRASH_MAIN"
+        return
+    fi
+
+    uid=$(id -u)
+    t="$target/.Trash-$uid"
+    trash_check "$t"
+    echo "$t"
+}
+
+trash_list() {
+    trashes_list | while read -r trash; do
+        find "$trash/info" -type f -name '*.trashinfo' | while read -r info; do
+            # FIXME: this is too slow, use awk or something after the loops
+            n=$(basename "$info" | sed -r 's/\.trashinfo$//')
+            d=$(sed -rn 's/DeletionDate=(.+)/\1/p' "$info")
+            echo "$d $n @ $trash"
+        done
+    done | sort --reverse | column -s '@' -o '@:' -t
+}
+
+trash_line_to_trash() {
+    echo "$1" | sed -rn 's/.+@: (.+)/\1/p'
+}
+
+trash_line_to_name() {
+    echo "$1" | sed -rn 's/.+:[0-9]{2} (.+) +@: (.+)/\1/; s/[[:space:]]*$//p'
+}
+
+trash_restore() {
+    n=$(trash_line_to_name "$1")
+    trash=$(trash_line_to_trash "$1")
+    info="$trash/info/${n}.trashinfo"
+    file="$trash/files/${n}"
+    [ -n "$n" ] || [ -n "$trash" ] || {
+        err "Invalid trash file '$1'"
+        return 1
+    }
+    [ -e "$file" ] || {
+        err "Trash file not found '$file'"
+        return 1
+    }
+    p=$(sed -rn 's/Path=(.+)/\1/p' -- "$info")
+
+    # check if exists
+    n=$(basename "$p")
+    d=$(dirname "$p")
+    num=2
+    while [ -e "$p" ]; do
+        n_new=$(echo "$n" | sed -rn "s/(.+)\.(.+)/\1.$num.\2/p")
+        [ -n "$n_new" ] || n_new="$n.$num"
+        p="$d/$n_new"
+        num=$((num + 1))
+    done
+    [ -n "$n_new" ] && n="$n_new"
+
+    run mv -- "$file" "$p" &&
+        run rm -- "$info"
+}
+
+trash_delete() {
+    n=$(trash_line_to_name "$1")
+    trash=$(trash_line_to_trash "$1")
+    info="$trash/info/${n}.trashinfo"
+    file="$trash/files/${n}"
+    [ -n "$n" ] || [ -n "$trash" ] || {
+        err "Invalid trash file '$1'"
+        return 1
+    }
+    [ -e "$file" ] || {
+        err "Trash file not found '$file'"
+        return 1
+    }
+    p=$(sed -rn 's/Path=(.+)/\1/p' "$info")
+
+    run rm -rf -- "$file" &&
+        run rm -- "$info"
+}
+
+trash_move() {
+    [ -e "$1" ] || {
+        err "No such file of directory '$1'"
+        return 1
+    }
+    p=$(realpath "$1")
+    d=$(date '+%Y-%m-%dT%H:%M:%S')
+    trash=$(trash_find_for "$p")
+    n=$(basename "$p")
+    file="$trash/files/${n}"
+
+    # check if exists
+    num=2
+    while [ -e "$file" ]; do
+        n_new=$(echo "$n" | sed -rn "s/(.+)\.(.+)/\1.$num.\2/p")
+        [ -n "$n_new" ] || n_new="$n.$num"
+        file="$trash/files/$n_new"
+        num=$((num + 1))
+    done
+    [ -n "$n_new" ] && n="$n_new"
+    info="$trash/info/${n}.trashinfo"
+
+    {
+        echo '[Trash Info]'
+        echo "Path=$p"
+        echo "DeletionDate=$d"
+    } > "$info"
+    run mv -- "$p" "$file"
+}
+
+trash_du() {
+    trashes=$(trashes_list)
+    [ -n "$trashes" ] || {
+        echo 'Trash is empty'
+        return
+    }
+    echo 'Calculating trash disk usage...'
+    res=$(echo "$trashes" | xargs du -s 2>/dev/null)
+    echo "$res" | while read -r s d; do
+        printf '%15s\t %s\n' "$(human "$s")" "$d"
+    done
+    sum=$(echo "$res" | cut -f1 |
+              awk 'BEGIN {ans=0} {ans+=$1} END {print ans}')
+    printf 'Total trash disk usage: '
+    human "$sum"
+}
+
+trash_empty() {
+    trashes=$(trashes_list)
+    [ -n "$trashes" ] || {
+        echo 'Trash is empty'
+        return
+    }
+    echo "$trashes" | xargs rm -rf --
+}
+
+trash_preview() {
+    case "$1" in
+        "$EMPTY")
+            return ;;
+        'Trash disk usage'|'Empty trash')
+            echo 'Trash direcrories:'
+            trashes_list
+            return ;;
+    esac
+    n=$(trash_line_to_name "$1")
+    trash=$(trash_line_to_trash "$1")
+    info="$trash/info/${n}.trashinfo"
+    file="$trash/files/${n}"
+    stat -- "$file"
+    echo
+    cat -- "$info"
+}
+
+trash_menu() {
+    if [ "$USE_STPV" ]; then
+        stpvimg --clear "$id"
+    fi
+
+    [ "$TMUX" ] && {
+        tmux set automatic-rename off
+        tmux rename-window "Trash"
+    }
+
+    res=$({
+             echo 'Trash disk usage'
+             echo 'Empty trash'
+             l=$(trash_list)
+             if [ -n "$l" ]; then
+                 echo "$l"
+             else
+                 echo "$EMPTY"
+             fi
+         } | menu_trash)
+
+    [ -n "$res" ] || return 1
+
+    case "$res" in
+        'Trash disk usage')
+            reset_terminal
+            trash_du
+            wait_user
+            trash_menu ;;
+
+        'Empty trash')
+            ans=$({
+                     echo 'Cancel'
+                     echo 'Yes'
+                 } | menu_interface --prompt "Empty trash? ")
+            [ "$ans" = Yes ] && {
+                reset_terminal
+                trash_empty
+                wait_user
+            }
+            trash_menu ;;
+
+        "$EMPTY")
+            trash_menu ;;
+
+        *)
+            n=$(trash_line_to_name "$res")
+            trash=$(trash_line_to_trash "$res")
+            file="$trash/files/${n}"
+            ans=$({
+                     echo 'Restore'
+                     echo 'Delete permanently'
+                 } | menu_interface                 \
+                         --prompt "> "              \
+                         --header "$res"            \
+                         --preview-window "$PV_WIN" \
+                         --preview "$(pv_cmd "$file")")
+            case "$ans" in
+                'Restore')
+                    reset_terminal
+                    trash_restore "$res"
+                    wait_user ;;
+                'Delete permanently')
+                    ans=$({
+                             echo 'Cancel'
+                             echo 'Yes'
+                         } | menu_interface      \
+                                 --header "$res" \
+                                 --prompt "Delete permanently? ")
+                    [ "$ans" = Yes ] && {
+                        reset_terminal
+                        trash_delete "$res"
+                        wait_user
+                    } ;;
+            esac
+            trash_menu
+    esac
+
+    [ "$TMUX" ] && tmux set automatic-rename on
 }
 
 # ==== archive utils ====
@@ -709,7 +987,6 @@ menu_search() {
     esac
 }
 
-# TODO: add option to embed goto in the main list
 menu_goto() {
     pv='echo Press ctrl-u to unmount devices if any'
     case "$MENU" in
@@ -720,6 +997,18 @@ menu_goto() {
                 --preview="$pv"              \
                 --preview-window='bottom:1%' \
                 --prompt='Go to> ' ;;
+    esac
+}
+
+menu_trash() {
+    case "$MENU" in
+        fzf)
+            menu_base                                       \
+                --preview-window "$PV_WIN"                  \
+                --preview "'$SELF' --eval trash_preview {}" \
+                --layout reverse                            \
+                --header "Trash"                            \
+                --info inline ;;
     esac
 }
 
@@ -863,7 +1152,7 @@ delete() {
         prompt="Delete $f?"
     fi
     ans=$({
-             exists gio || exists trash-put && echo 'Trash'
+             echo 'Trash'
              echo 'Delete permanently'
              echo 'Cancel'
          } | menu_interface --prompt "$prompt> ")
@@ -872,13 +1161,11 @@ delete() {
         case "$ans" in
             Trash)
                 selection_up
-                # move current file or selected files to trash folder
-                # using trash-cli (https://github.com/andreafrancia/trash-cli)
-                gio trash "$file" || trash-put "$file" ;;
+                trash_move "$file" ;;
             Delete*)
                 selection_up
                 file=$(basename "$file")
-                rm -r -- "$file" ;;
+                run rm -r -- "$file" ;;
         esac
     done
 }
@@ -983,6 +1270,7 @@ recent_list() {
 
 goto_items() {
     echo "$bookmarks" | tr ':' '\n'
+    echo 'Trash'
     devs_ls
     rec=$(recent_list) && echo "$rec" | while read -r l; do
             echo "$RECENT" "$l"
@@ -1033,12 +1321,11 @@ goto_run() {
                 fi
             }
             confirm=1 ;;
+        'Trash')
+            trash_menu ;;
     esac
 
-    [ "$confirm" ] && {
-        echo 'Press enter to continue...'
-        read -r _
-    }
+    [ "$confirm" ] && wait_user
 
     [ -d "$res" ] || res="$PWD"
     cd -- "$res" ||:
@@ -1185,14 +1472,20 @@ preview() {
 }
 
 pv_cmd() {
+    if [ $# = 1 ]; then
+        target="'$1'"
+    else
+        target='{}'
+    fi
     case "$MENU" in
         fzf)
-            cmd="[ -e {} ]"
-            cmd="$cmd && printf '(%d) ' \$(({n} + 1))"
-            cmd="$cmd && ls -lhd -- {}"
+            cmd="[ -e $target ]"
+            [ "$target" = '{}' ] &&
+                cmd="$cmd && printf '(%d) ' \$(({n} + 1))"
+            cmd="$cmd && ls -lhd -- $target"
             if [ "$PV_WIN" != 'down:1%' ]; then
                 cmd="$cmd && '$SELF' --eval preview"
-                cmd="$cmd '$USE_STPV' {} $PV_W $PV_H $PV_X $PV_Y $ID"
+                cmd="$cmd '$USE_STPV' $target $PV_W $PV_H $PV_X $PV_Y $ID"
             fi ;;
     esac
     echo "$cmd"
@@ -1333,8 +1626,7 @@ doit() {
             reset_terminal
             run_show "$cmd"
             eval "$cmd"
-            echo 'Press enter to continue...'
-            read -r _
+            wait_user
 
         elif [ -z "$res" ]; then
             break
