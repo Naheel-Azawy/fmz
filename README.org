@@ -1,121 +1,134 @@
 * FMZ
-  File manager in a fuzzy finder.
+File manager in a fuzzy finder.
 
-  [[./vid/2021-04-03-tiny.gif]]
-  [[./vid/fmz-2021-04-03_05.16.10.mp4]]
+[[./vid/2021-04-03-tiny.gif]]
+[[./vid/fmz-2021-04-03_05.16.10.mp4]]
 
 ** Dependencies
-   core utils and [[https://github.com/junegunn/fzf][fzf]].
+core utils and [[https://github.com/junegunn/fzf][fzf]].
+
+** Features
+- Pure POSIX
+- Does not re-implement what's already in core utils
+- Easy configuration
+- Sane defaults
+- Fuzzy
+- Scriptable
+- Device management
+- Shell integration with cd on exit
+- Auto archive extraction
+- XDG trash
+- Check below for optional features
 
 ** Optional dependencies/features
-   Having one of those is not a must, they only unlock new superpowers.
+Having one of those is not a must, they only unlock new superpowers.
 
-   | Dependency         | Superpower                       |
-   |--------------------+----------------------------------|
-   | [[https://github.com/Naheel-Azawy/stpv][stpv]]               | better previews with images      |
-   | [[https://github.com/Naheel-Azawy/cp-p][cp-p]]               | show progress of cp and mv       |
-   | [[https://github.com/cybernoid/archivemount][archivemount]] ([[https://aur.archlinux.org/packages/archivemount/][AUR]]) | browse archives seamlessly       |
-   | gio or [[https://github.com/andreafrancia/trash-cli][trash-cli]]   | XDG trash                        |
-   | xclip              | copy file names to X clipboard   |
-   | [[https://github.com/mwh/dragon][dragon]]             | drag and drop                    |
-   | [[https://github.com/sharkdp/fd][fd]]                 | better find                      |
-   | perl-file-mimeinfo | XDG open with                    |
-   | udisks2            | mount and unmount devices        |
-   | [[https://github.com/phatina/simple-mtpfs/][simple-mtpfs]] ([[https://aur.archlinux.org/packages/simple-mtpfs/][AUR]]) | mount and unmount MTP devices    |
-   | dunst              | actions with mount notifications |
-   | vidir (moreutils)  | bulk rename in a directory       |
+| Dependency         | Superpower                       |
+|--------------------+----------------------------------|
+| [[https://github.com/Naheel-Azawy/stpv][stpv]]               | better previews with images      |
+| [[https://github.com/Naheel-Azawy/cp-p][cp-p]]               | show progress of cp and mv       |
+| [[https://github.com/cybernoid/archivemount][archivemount]] ([[https://aur.archlinux.org/packages/archivemount/][AUR]]) | browse archives seamlessly       |
+| xclip              | copy file names to X clipboard   |
+| [[https://github.com/mwh/dragon][dragon]]             | drag and drop                    |
+| [[https://github.com/sharkdp/fd][fd]]                 | better find                      |
+| perl-file-mimeinfo | XDG open with                    |
+| udisks2            | mount and unmount devices        |
+| [[https://github.com/phatina/simple-mtpfs/][simple-mtpfs]] ([[https://aur.archlinux.org/packages/simple-mtpfs/][AUR]]) | mount and unmount MTP devices    |
+| gio                | mount and unmount gvfs devices   |
+| dunst              | actions with mount notifications |
+| vidir (moreutils)  | bulk rename in a directory       |
 
 ** Installation
-   #+begin_src shell-script
-     make install
-   #+end_src
+#+begin_src shell-script
+  make install
+#+end_src
 
 ** Shell integration
-   - sh
-     #+begin_src shell-script
-       fmz() {
-           tmp=$(mktemp)
-           command fmz --cd "$tmp" "$@"
-           res=$(tail -n 1 "$tmp")
-           if [ -d "$res" ] && [ "$res" != "$PWD" ]; then
-               echo cd "$res"
-               cd "$res" || return 1
-           fi
-           rm "$tmp"
-       }
-     #+end_src
+- sh
+  #+begin_src shell-script
+    fmz() {
+        tmp=$(mktemp)
+        command fmz --cd "$tmp" "$@"
+        res=$(tail -n 1 "$tmp")
+        if [ -d "$res" ] && [ "$res" != "$PWD" ]; then
+            echo cd "$res"
+            cd "$res" || return 1
+        fi
+        rm "$tmp"
+    }
+  #+end_src
 
-   - fish
-     #+begin_src shell-script
-       function fmz
-           set tmp (mktemp)
-           command fmz --cd $tmp $argv
-           set res (tail -n 1 $tmp)
-           if test -d "$res" && test "$res" != "$PWD"
-               echo cd $res
-               cd $res || return 1
-           end
-           rm $tmp
+- fish
+  #+begin_src shell-script
+    function fmz
+    set tmp (mktemp)
+    command fmz --cd $tmp $argv
+    set res (tail -n 1 $tmp)
+    if test -d "$res" && test "$res" != "$PWD"
+       echo cd $res
+       cd $res || return 1
        end
-     #+end_src
+       rm $tmp
+       end
+  #+end_src
 
 ** Default bindings
-   In general, [[https://en.wikipedia.org/wiki/IBM_Common_User_Access][CUA]]-like bindings where used, M-x for menu, and F1 to show all bindings.
+In general, [[https://en.wikipedia.org/wiki/IBM_Common_User_Access][CUA]]-like bindings where used, M-x for menu, and F1 to show all bindings.
 
 ** Configuration
-   Config file is just a shell script that gets sourced in fmz. So be sure not to have the setuid bit set on fmz.
-   Key symbols are as defined by fzf (check ~man fzf~).
-   You can bind fzf actions, functions (using ~fun~), or quick functions that does not need ~f~ and ~fx~ (using ~funq~).
-   Example config file (~/.config/fmzrc.sh):
+Config file is just a shell script that gets sourced in fmz. So be sure not to have the setuid bit set on fmz.
+Key symbols are as defined by fzf (check ~man fzf~).
+You can bind fzf actions, functions (using ~fun~), or quick functions that does not need ~f~ and ~fx~ (using ~funq~).
+Example config file (~/.config/fmzrc.sh):
 
-   #+begin_src shell-script
-     # basic bindings
-     bind alt-w  fun  copy
-     bind ctrl-w fun  move
-     bind ctrl-y funq paste
-     bind ctrl-c      abort
+#+begin_src shell-script
+  # basic bindings
+  bind alt-w  fun  copy
+  bind ctrl-w fun  move
+  bind ctrl-y funq paste
+  bind ctrl-c      abort
 
-     # add a function to menu and bind it
-     add_fun myless 'Less a file'
-     bind ctrl-p fun myless
-     myless() {
-         tput rmcup
-         less "$f"
-     }
+  # add a function to menu and bind it
+  add_fun myless 'Less a file'
+  bind ctrl-p fun myless
+  myless() {
+      tput rmcup
+      less "$f"
+  }
 
-     # bookmarks
-     bookmark ~/Documents
-     bookmark ~/Pictures
-     bookmark ~/Videos
+  # bookmarks
+  bookmark ~/Documents
+  bookmark ~/Pictures
+  bookmark ~/Videos
 
-     # other variables
-     OPENER=xdg-open
-     TERMINAL=st
-   #+end_src
+  # other variables
+  OPENER=xdg-open
+  TERMINAL=st
+#+end_src
 
 ** Mount monitor
-   #+begin_src shell-script
-     fmz --mount-monitor
-   #+end_src
+#+begin_src shell-script
+  fmz --mount-monitor
+#+end_src
 
-   If ~dunstify~ exists, the notification action will mount the drive and open fmz in a terminal window.
-   ~notify-send~ can be used instead but clicking won't do anything.
-   The default bind for unmounting the current directory is ctrl-u.
+If ~dunstify~ exists, the notification action will mount the drive and open fmz in a terminal window.
+~notify-send~ can be used instead but clicking won't do anything.
+The default bind for unmounting the current directory is ctrl-u.
 
 ** Why?
-   I tried many other file managers like [[https://en.wikipedia.org/wiki/Midnight_Commander][mc]], [[https://github.com/ranger/ranger][ranger]], [[https://github.com/gokcehan/lf][lf]], [[https://github.com/jarun/nnn][nnn]], [[https://github.com/dylanaraps/fff][fff]], and several others that I forgot.
-   From the GUI world, it worth mentioning nautilus, nemo, thunar, and pantheon's files.
-   They all are cool in some way, but still not as good as I wanted.
-   If you're here, probably there's no need to talk about GUI.
-   Out of all the terminal file managers, lf has been my choice for a pretty long time and I do believe that it is the best out of the ones I just mentioned.
-   However, with time, I started realizing lf problems. Here are some of what I recall:
-   - A bit of unnecessary bloat.
-     lf is relatively so minimal. But, in my opinion, there are some unnecessary parts like the builtin copy implementation and the config parser.
-   - Too much configuration
-     lf is almost unusable out of the box. Minimalism is good of course, but having some sane defaults can be done without being bloated too.
-   - I use fzf anyway...
-     Even inside lf, I used to have a key binding to fzf to find and jump to wherever I want. In practice, I found myself opening fzf almost every time I use lf.
-   I'm not trying to say lf is bad. It is amazing. It just wasn't enough for me.
+I tried many other file managers like [[https://en.wikipedia.org/wiki/Midnight_Commander][mc]], [[https://github.com/ranger/ranger][ranger]], [[https://github.com/gokcehan/lf][lf]], [[https://github.com/jarun/nnn][nnn]], [[https://github.com/dylanaraps/fff][fff]], and several others that I forgot.
+From the GUI world, it worth mentioning nautilus, nemo, thunar, and pantheon's files.
+They all are cool in some way, but still not as good as I wanted.
+If you're here, probably there's no need to talk about GUI.
+Out of all the terminal file managers, lf has been my choice for a pretty long time and I do believe that it is the best out of the ones I just mentioned.
+However, with time, I started realizing lf problems. Here are some of what I recall:
+- A bit of unnecessary bloat.
+  lf is relatively so minimal. But, in my opinion, there are some unnecessary parts like the builtin copy implementation and the config parser.
+- Too much configuration
+  lf is almost unusable out of the box. Minimalism is good of course, but having some sane defaults can be done without being bloated too.
+- I use fzf anyway...
+  Even inside lf, I used to have a key binding to fzf to find and jump to wherever I want. In practice, I found myself opening fzf almost every time I use lf.
+  I'm not trying to say lf is bad. It is amazing. It just wasn't enough for me.
 
 ** License
-   GPL3
+GPL3
