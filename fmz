@@ -352,7 +352,7 @@ trash_move() {
         err "No such file of directory '$1'"
         return 1
     }
-    p=$(realpath "$1")
+    p=$(realpath -s -- "$1")
     d=$(date '+%Y-%m-%dT%H:%M:%S')
     trash=$(trash_find_for "$p")
     n=$(basename "$p")
