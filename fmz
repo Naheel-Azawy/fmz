@@ -21,16 +21,29 @@ NAME='fmz'
 MENU='fzf'
 FZF_MIN_VERSION=38000
 
+# tmp directory
+if [ -n "$TMPDIR" ]; then
+    SYSTMP_DIR="$TMPDIR"
+else
+    SYSTMP_DIR=/tmp
+fi
+if ! [ -d "$SYSTMP_DIR" ] || ! [ -w "$SYSTMP_DIR" ]; then
+    SYSTMP_DIR=~/.cache/fmz
+    mkdir -p "$SYSTMP_DIR"
+fi
+export TMPDIR="$SYSTMP_DIR"
+
+# consts
 SELF=$(realpath "$0")
 ID=$$
 CFG_DIR=${XDG_CONFIG_HOME:-"$HOME/.config"}
 CFG_FILE="$CFG_DIR/${NAME}rc.sh"
 TRASH_MAIN=${XDG_DATA_HOME:-"$HOME/.local/share"}/Trash
-OP_FILE=/tmp/$NAME-op
-HIDDEN_FILE=/tmp/$NAME-hidden
-SORT_FILE=/tmp/$NAME-sort
-RECENT_FILE="/tmp/$NAME-recent"
-TMP_DIR="/tmp/$NAME-tmp-$ID"
+OP_FILE="$SYSTMP_DIR/$NAME-op"
+HIDDEN_FILE="$SYSTMP_DIR/$NAME-hidden"
+SORT_FILE="$SYSTMP_DIR/$NAME-sort"
+RECENT_FILE="$SYSTMP_DIR/$NAME-recent"
+TMP_DIR="$SYSTMP_DIR/$NAME-tmp-$ID"
 TMP_FILE="$TMP_DIR/tmp"
 LAST_FILE="$TMP_DIR/last-"
 PENDING_FILE="$TMP_DIR/pnd"
@@ -514,7 +527,7 @@ isarchive() {
 
 archive_getmnt() {
     md5=$(echo "$1" | md5sum - | cut -d ' ' -f 1)
-    echo "/tmp/archivemount-wrapper/$md5"
+    echo "$SYSTMP_DIR/archivemount-wrapper/$md5"
 }
 
 archive_getln() {
@@ -603,7 +616,7 @@ archive_mount() {
 }
 
 archive_umountall() {
-    for d in /tmp/archivemount-wrapper/*-origin; do
+    for d in "$SYSTMP_DIR"/archivemount-wrapper/*-origin; do
         p=$(cat "$d")
         if [ "$p" ]; then
             echo "unmounting '$p'..."
