@@ -239,7 +239,7 @@ version_to_int() {
 human() {
     # https://unix.stackexchange.com/questions/44040/a-standard-tool-to-convert-a-byte-count-into-human-kib-mib-etc-like-du-ls1
     echo "$1" | awk 'function human(x) {
-    s=" B   KiB MiB GiB TiB EiB PiB YiB ZiB"
+    s="KiB MiB GiB TiB EiB PiB YiB ZiB"
     while (x >= 1024 && length(s) > 1) {
         x /= 1024
         s = substr(s, 5)
