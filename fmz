@@ -20,6 +20,7 @@
 NAME='fmz'
 MENU='fzf'
 FZF_MIN_VERSION=38000
+fzf_version=
 
 # tmp directory
 if [ -n "$TMPDIR" ]; then
@@ -109,7 +110,13 @@ run_fun() {
 force_res_bind() {
     # in the latest versions of fzf, when echoing in execute(),
     # it will echo to the stdout and will not be caught by $()
-    echo "abort+execute(echo $1 > '$PENDING_FILE')"
+    if [ "$fzf_version" -ge 59000 ]; then
+        # I don't see the reason of this breaking change in the
+        # changelog of fzf, but it is what it is...
+        echo "execute(echo $1 > '$PENDING_FILE')+abort"
+    else
+        echo "abort+execute(echo $1 > '$PENDING_FILE')"
+    fi
 }
 
 check_forced_res() {
