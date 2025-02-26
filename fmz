@@ -811,6 +811,28 @@ gvfs_mountpoint() {
     [ -e "$mp" ] && echo "$mp"
 }
 
+# fuse others
+
+fuse_ls() {
+    fss='encfs|sshfs'
+    mount | sed -rn "s/(.+) on (.+) type fuse\.($fss) .+/$MOUNTED#FUSE.\3:\1#\2/p"
+}
+
+fuse_mount() {
+    err 'Cannot mount fuse here'
+}
+
+fuse_unmount() {
+    is_mounted "$@" || return 1
+    dev=$(echo "$@" | awk '{print $3}')
+    run fusermount -u "$dev" 2>&1
+}
+
+fuse_mountpoint() {
+    mp=$(echo "$@" | awk '{print $3}')
+    [ -e "$mp" ] && echo "$mp"
+}
+
 # TODO: add ifuse interface
 
 # all
@@ -819,6 +841,7 @@ devs_ls() {
     {
         mtp_ls
         gvfs_ls
+        fuse_ls
         blocks_ls
     } | column -t -s'#'
 }
@@ -829,6 +852,7 @@ devs_mount() {
         /dev/*) blocks_mount "$@" ;;
         MTP*)   mtp_mount    "$@" ;;
         GVFS*)  gvfs_mount   "$@" ;;
+        FUSE.*) fuse_mount   "$@" ;;
         *)      return 1 ;;
     esac
 }
@@ -839,6 +863,7 @@ devs_unmount() {
         /dev/*) blocks_unmount "$@" ;;
         MTP*)   mtp_unmount    "$@" ;;
         GVFS*)  gvfs_unmount   "$@" ;;
+        FUSE.*) fuse_unmount   "$@" ;;
         *)      return 1 ;;
     esac
 }
@@ -849,6 +874,7 @@ devs_mountpoint() {
         /dev/*) blocks_mountpoint "$@" ;;
         MTP*)   mtp_mountpoint    "$@" ;;
         GVFS*)  gvfs_mountpoint   "$@" ;;
+        FUSE.*) fuse_mountpoint   "$@" ;;
         *)      return 1 ;;
     esac
 }
