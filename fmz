@@ -1599,6 +1599,7 @@ selection_file() {
 }
 
 selection_set_selected() {
+    doingit || return 0
     file=$(basename "$1")
     selection=$(selection_file .)
     n=$(list | remove_ansi         |
@@ -1620,6 +1621,10 @@ selection_up() {
             echo "$n" > "$selection"
         fi
     fi
+}
+
+doingit() {
+    [ -f "$PENDING_FILE" ]
 }
 
 doit() {
