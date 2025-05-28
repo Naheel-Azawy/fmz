@@ -380,7 +380,7 @@ trash_move() {
 
     # check if exists
     num=2
-    while [ -e "$file" ]; do
+    while [ -e "$file" ] || [ -L "$file" ]; do
         n_new=$(echo "$n" | sed -rn "s/(.+)\.(.+)/\1.$num.\2/p")
         [ -n "$n_new" ] || n_new="$n.$num"
         file="$trash/files/$n_new"
@@ -389,12 +389,11 @@ trash_move() {
     [ -n "$n_new" ] && n="$n_new"
     info="$trash/info/${n}.trashinfo"
 
-    {
+    run mv -- "$p" "$file" && {
         echo '[Trash Info]'
         echo "Path=$p"
         echo "DeletionDate=$d"
     } > "$info"
-    run mv -- "$p" "$file"
 }
 
 trash_du() {
