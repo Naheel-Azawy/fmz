@@ -283,8 +283,10 @@ trash_check() {
 
 trash_find_for() {
     trash_check "$TRASH_MAIN"
-    target=$(findmnt -no target -T "$1")
     main_target=$(findmnt -no target -T "$TRASH_MAIN")
+    target=$(findmnt -no target -T "$1")
+    [ -n "$target" ] || # because the above fails on dead links
+        target=$(findmnt -no target -T "$(dirname "$1")")
 
     if [ "$main_target" = "$target" ]; then
         trash_check "$TRASH_MAIN"
@@ -368,7 +370,7 @@ trash_delete() {
 }
 
 trash_move() {
-    [ -e "$1" ] || {
+    [ -e "$1" ] || [ -L "$1" ] || {
         err "No such file of directory '$1'"
         return 1
     }
