@@ -302,12 +302,22 @@ trash_find_for() {
 
 trash_list() {
     trashes_list | while read -r trash; do
-        find "$trash/info" -type f -name '*.trashinfo' | while read -r info; do
-            # FIXME: this is too slow, use awk or something after the loops
-            n=$(basename "$info" | sed -r 's/\.trashinfo$//')
-            d=$(sed -rn 's/DeletionDate=(.+)/\1/p' "$info")
-            echo "$d $n @ $trash"
-        done
+        find "$trash/info" -type f -name '*.trashinfo' |
+            awk -v trash="$trash" '{
+                name = $0 # no path no ext
+                sub(".*/", "", name)
+                sub(/\.trashinfo$/, "", name)
+                date = ""
+                while ((getline line < $0) > 0) {
+                    if (line ~ /^DeletionDate=/) {
+                        split(line, a, "=")
+                        date = a[2]
+                        break
+                    }
+                }
+                close($0)
+                print date, name, "@", trash
+            }'
     done | sort --reverse | column -s '@' -o '@:' -t
 }
 
