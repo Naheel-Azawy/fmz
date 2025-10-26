@@ -966,42 +966,49 @@ mount_monitor() {
 
 # ==== menu interface ====
 
-menu_base() {
-    case "$MENU" in
-        fzf)
-            SHELL="$PV_SHELL" fzf         \
-                 --ansi                   \
-                 --layout=reverse         \
-                 --no-clear               \
-                 --pointer=' '            \
-                 --marker='❱'             \
-                 --scroll-off=5           \
-                 --scrollbar='▐'          \
-                 --separator=''           \
-                 --ellipsis='…'           \
-                 --bind change:first      \
-                 --color='marker:#ffffff' \
-                 --color='fg+:reverse'    \
-                 --color='bg+:-1'         \
-                 --color='hl:reverse'     \
-                 --color='hl+:reverse'    \
-                 --color='gutter:-1'      \
-                 --info=default           \
-                 "$@" ;;
-    esac
+fzf_opts_push() {
+    # NOTE: watch out for quotes
+    for a; do
+        # shellcheck disable=SC2089
+        fzf_opts="$fzf_opts \"$a\""
+    done
 }
 
-menu_base_refreshable() {
-    case "$MENU" in
-        fzf)
-            # https://github.com/junegunn/fzf/blob/master/CHANGELOG.md#0460
-            if [ -n "$cmd_refresh" ] &&
-                   [ "$fzf_version" -ge 46000 ]; then
-                menu_base --bind "resize:$cmd_refresh" "$@"
-            else
-                menu_base "$@"
-            fi ;;
-    esac
+fzf_opts_clear() {
+    fzf_opts=
+}
+
+menu_base() {
+    fzf_opts_clear
+    fzf_opts_push                \
+        --ansi                   \
+        --layout=reverse         \
+        --no-clear               \
+        --pointer=' '            \
+        --marker='❱'             \
+        --scroll-off=5           \
+        --scrollbar='▐'          \
+        --separator=''           \
+        --ellipsis='…'           \
+        --bind change:first      \
+        --color='marker:#ffffff' \
+        --color='fg+:reverse'    \
+        --color='bg+:-1'         \
+        --color='hl:reverse'     \
+        --color='hl+:reverse'    \
+        --color='gutter:-1'      \
+        --info=default           \
+        "$@"
+
+    # hide gutter for newer versions
+    [ "$fzf_version" -ge 66000 ] &&
+        fzf_opts_push --gutter=' '
+
+    # https://github.com/junegunn/fzf/blob/master/CHANGELOG.md#0460
+    [ "$fzf_version" -ge 46000 ] &&
+        fzf_opts_push --bind="resize:$cmd_refresh"
+
+    SHELL="$PV_SHELL" FZF_DEFAULT_OPTS="$fzf_opts" fzf
 }
 
 reset_terminal() {
@@ -1072,7 +1079,7 @@ menu_trash() {
 menu_main_list_real() {
     case "$MENU" in
         fzf)
-            menu_base_refreshable          \
+            menu_base                      \
                 --multi                    \
                 --preview-window "$PV_WIN" \
                 --preview "$(pv_cmd)"      \
@@ -1738,6 +1745,7 @@ doit() {
         stpvimg --end $ID
 
     rm -rf "$TMP_DIR"
+    fzf_opts_clear
 
     [ "$TMUX" ] && tmux set automatic-rename on
 
