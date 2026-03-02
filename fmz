@@ -369,7 +369,7 @@ trash_delete() {
         err "Invalid trash file '$1'"
         return 1
     }
-    [ -e "$file" ] || {
+    [ -e "$file" ] || [ -L "$file" ] || {
         err "Trash file not found '$file'"
         return 1
     }
