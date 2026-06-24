@@ -34,22 +34,32 @@ if ! [ -d "$SYSTMP_DIR" ] || ! [ -w "$SYSTMP_DIR" ]; then
 fi
 export TMPDIR="$SYSTMP_DIR"
 
+# run directory
+# prefer XDG_RUNTIME_DIR (/run/user/$UID on systemd systems)
+# fall back to SYSTMP_DIR
+if [ -n "$XDG_RUNTIME_DIR" ]     &&
+       [ -d "$XDG_RUNTIME_DIR" ] &&
+       [ -w "$XDG_RUNTIME_DIR" ]; then
+    SYSRUN_DIR="$XDG_RUNTIME_DIR/$NAME"
+else
+    SYSRUN_DIR="$SYSTMP_DIR/$NAME-run"
+fi
+
 # consts
 SELF=$(realpath "$0")
 ID=$$
 CFG_DIR=${XDG_CONFIG_HOME:-"$HOME/.config"}
 CFG_FILE="$CFG_DIR/${NAME}rc.sh"
 TRASH_MAIN=${XDG_DATA_HOME:-"$HOME/.local/share"}/Trash
-OP_FILE="$SYSTMP_DIR/$NAME-op"
-HIDDEN_FILE="$SYSTMP_DIR/$NAME-hidden"
-SORT_FILE="$SYSTMP_DIR/$NAME-sort"
-RECENT_FILE="$SYSTMP_DIR/$NAME-recent"
-TMP_DIR="$SYSTMP_DIR/$NAME-tmp-$ID"
+OP_FILE="$SYSRUN_DIR/op"
+HIDDEN_FILE="$SYSRUN_DIR/hidden"
+SORT_FILE="$SYSRUN_DIR/sort"
+RECENT_FILE="$SYSRUN_DIR/recent"
+TMP_DIR="$SYSRUN_DIR/session-$ID"
 TMP_FILE="$TMP_DIR/tmp"
 LAST_FILE="$TMP_DIR/last-"
 PENDING_FILE="$TMP_DIR/pnd"
 EMPTY='/EMPTY/'
-ESC=$(printf '\033')
 
 # for fzf preview
 PV_SHELL=bash
@@ -221,25 +231,17 @@ remove_ansi() {
     sed 's/\x1b\[[0-9;]*m//g'
 }
 
-remove_ansi_reset() {
-    start_bytes=$(echo "$1" | head -n1 | head -c 4)
-    if [ "$start_bytes" = "${ESC}[0m" ]; then
-        echo "$1" | head -n1 | tail -c +5
-    else
-        echo "$1"
-    fi
-}
-
 relativify() {
-    here=$(realpath .)
-    sed "s:^$here:.:"
+    # escape sed metacharacters and the : delimiter in $here
+    # before substitution
+    here_esc=$(realpath . | sed 's:[\\:&]:\\&:g')
+    sed "s:^${here_esc}:.:"
 }
 
 version_to_int() {
     v=$(cut -d' ' -f1)
-    v1=$(echo "$v" | cut -d. -f1)
-    v2=$(echo "$v" | cut -d. -f2)
-    v3=$(echo "$v" | cut -d. -f3)
+    v1=${v%%.*}; v=${v#*.}
+    v2=${v%%.*}; v3=${v#*.}
     echo $((v3 + v2 * 1000 + v1 * 1000000))
 }
 
@@ -277,8 +279,7 @@ trashes_list() {
 trash_check() {
     [ -d "$1" ] && [ -d "$1/info" ] && [ -d "$1/files" ] &&
         return 0
-    mkdir -p -- "$1/info" "$1/files"
-    chmod 700 "$1"
+    (umask 077 && mkdir -p -- "$1/info" "$1/files")
 }
 
 trash_find_for() {
@@ -545,7 +546,7 @@ isarchive() {
 
 archive_getmnt() {
     md5=$(echo "$1" | md5sum - | cut -d ' ' -f 1)
-    echo "$SYSTMP_DIR/archivemount-wrapper/$md5"
+    echo "$SYSRUN_DIR/archivemount-wrapper/$md5"
 }
 
 archive_getln() {
@@ -634,7 +635,7 @@ archive_mount() {
 }
 
 archive_umountall() {
-    for d in "$SYSTMP_DIR"/archivemount-wrapper/*-origin; do
+    for d in "$SYSRUN_DIR"/archivemount-wrapper/*-origin; do
         p=$(cat "$d")
         if [ "$p" ]; then
             echo "unmounting '$p'..."
@@ -1150,27 +1151,27 @@ copy() {
     [ -n "$fx" ] || return
     exists xclip &&
         printf '%s' "$fx" | xclip -i -selection clipboard
-    {
-        echo "copy"
-        echo "$fx"
-    } > "$OP_FILE"
+    (umask 177
+     {
+         echo "copy"
+         echo "$fx"
+     } > "$OP_FILE")
 }
 
 move() {
     [ -n "$fx" ] || return
     exists xclip &&
         printf '%s' "$fx" | xclip -i -selection clipboard
-    {
-        echo "move"
-        echo "$fx"
-    } > "$OP_FILE"
+    (umask 177
+     {
+         echo "move"
+         echo "$fx"
+     } > "$OP_FILE")
 }
 
 paste() {
     [ -f "$OP_FILE" ] || return
-    load=$(cat "$OP_FILE")
-    mode=$(echo "$load" | sed -n '1p')
-    list=$(echo "$load" | sed '1d')
+    { read -r mode; list=$(cat); } < "$OP_FILE"
     [ -n "$list" ] || return
 
     if exists cp-p; then
@@ -1198,9 +1199,7 @@ paste() {
 
 paste_symlink() {
     [ -f "$OP_FILE" ] || return
-    load=$(cat "$OP_FILE")
-    mode=$(echo "$load" | sed -n '1p')
-    list=$(echo "$load" | sed '1d')
+    { read -r mode; list=$(cat); } < "$OP_FILE"
 
     if [ "$mode" = copy ]; then
         echo "$list" | while read -r file; do
@@ -1273,6 +1272,10 @@ chmod_op() {
            echo 755
        } | menu_interface --prompt 'chmod> ')
     [ -n "$m" ] || return
+    case "$m" in
+        +x|-x|[0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;;
+        *) err "Invalid chmod mode '$m'"; return 1 ;;
+    esac
     echo "$fx" | while read -r file; do
         chmod "$m" "$file"
     done
@@ -1340,6 +1343,11 @@ mkarchive() {
                   exists "$t" && echo "$t"
               done
           } | menu_interface --prompt "Archive type> ")
+    [ -n "$type" ] || return
+    case "$type" in
+        zip|tar|7z) ;;
+        *) err "Invalid archive type '$type'"; return 1 ;;
+    esac
     name=$(basename "$(realpath -- "$f")" | cut -d . -f1)
     name=$(echo | menu_interface --prompt 'Archive name> ' --query "$name")
     reset_terminal
@@ -1353,10 +1361,11 @@ mkarchive() {
 
 recent_push() {
     realpath "$1" >> "$RECENT_FILE"
+    tmp=$(mktemp "${RECENT_FILE}.XXXXXX") || return 1
     awk '!x[$0]++' < "$RECENT_FILE" | while read -r line; do
         [ -f "$line" ] && echo "$line"
-    done | tail -n 10 > "$RECENT_DIR.min"
-    mv "$RECENT_DIR.min" "$RECENT_FILE"
+    done | tail -n 10 > "$tmp"
+    mv "$tmp" "$RECENT_FILE"
 }
 
 recent_list() {
@@ -1646,8 +1655,7 @@ doingit() {
 }
 
 doit() {
-    touch "$PENDING_FILE"
-    chmod 600 "$PENDING_FILE"
+    (umask 177 && > "$PENDING_FILE")
 
     while :; do
         selection=$(selection_file .)
@@ -1714,13 +1722,13 @@ doit() {
                 done
             fi
 
-        elif echo "$res" | grep -q '^\$'; then
+        elif case "$res" in '$'*) true;; *) false;; esac; then
             # because the menu messes with stdin and out
             # so, we can exit with a command to be executed
             cmd=$(echo "$res" | sed 's/^\$ *//')
             eval "$cmd"
 
-        elif echo "$res" | grep -q '^>'; then
+        elif case "$res" in '>'*) true;; *) false;; esac; then
             # same as above, but show everything
             cmd=$(echo "$res" | sed 's/^> *//')
             reset_terminal
@@ -1865,7 +1873,7 @@ main() {
             return 1 ;;
     esac
 
-    mkdir -p "$MOUNTS_DIR"
+    mkdir -p "$MOUNTS_DIR" "$SYSRUN_DIR"
     conf_init
 
     case "$1" in
